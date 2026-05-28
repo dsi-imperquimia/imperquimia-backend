@@ -22,10 +22,8 @@
     "prisma:migrate:create": "prisma migrate dev --create-only",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate",
-    "prisma:rollback": "prisma migrate reset --force",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:status": "prisma migrate status",
-    "prisma:studio": "prisma studio",
     "postinstall": "prisma generate"
   },
   "dependencies": {
