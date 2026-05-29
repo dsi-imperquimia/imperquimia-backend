@@ -10,8 +10,8 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2023",
-    "sourceMap": true,
+    "target": "esnext",
+    "sourceMap": false,
     "outDir": "./dist",
     "baseUrl": "./",
     "incremental": true,
@@ -34,5 +34,6 @@
         "./src/*"
       ],
     }
-  }
+  },
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", "generated"]
 }
