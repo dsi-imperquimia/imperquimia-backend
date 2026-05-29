@@ -1,5 +1,9 @@
 import { Prisma, PrismaClient } from '@gen/prisma/client';
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  type OnModuleDestroy,
+  type OnModuleInit,
+} from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -32,6 +36,18 @@ console.log(
   `Soft delete enabled for models: ${[...softDeleteModels].join(', ')}`,
 );
 
+interface SoftDeleteContext<T, A> {
+  update(args: {
+    where: unknown;
+    data: { deletedAt: Date };
+  }): Promise<Prisma.Result<T, A, 'delete'>>;
+
+  updateMany(args: {
+    where?: unknown;
+    data: { deletedAt: Date };
+  }): Promise<Prisma.BatchPayload>;
+}
+
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -49,38 +65,39 @@ export class PrismaService
     });
   }
 
-  public readonly extendedClient = this.$extends({
+  public readonly models = this.$extends({
     name: 'softDelete',
     model: {
       $allModels: {
         // delete/deleteMany must be intercepted here — in query extensions `this` is NOT
         // the model delegate and has no CRUD methods. Models without deletedAt get a
         // Prisma validation error; use the base PrismaService for those.
-        // eslint-disable-next-line @typescript-eslint/require-await
         async delete<T, A>(
           this: T,
           args: Prisma.Exact<A, Prisma.Args<T, 'delete'>>,
-        ) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const ctx = Prisma.getExtensionContext(this) as any;
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        ): Promise<Prisma.Result<T, A, 'delete'>> {
+          const ctx = Prisma.getExtensionContext(
+            this,
+          ) as unknown as SoftDeleteContext<T, A>;
+
+          const safeArgs = args as { where: unknown };
+
           return ctx.update({
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-            where: (args as any).where,
+            where: safeArgs.where,
             data: { deletedAt: new Date() },
           });
         },
-        // eslint-disable-next-line @typescript-eslint/require-await
         async deleteMany<T, A>(
           this: T,
           args?: Prisma.Exact<A, Prisma.Args<T, 'deleteMany'>>,
-        ) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const ctx = Prisma.getExtensionContext(this) as any;
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        ): Promise<Prisma.BatchPayload> {
+          const ctx = Prisma.getExtensionContext(
+            this,
+          ) as unknown as SoftDeleteContext<T, A>;
+          const safeArgs = args as { where?: unknown } | undefined;
+
           return ctx.updateMany({
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-            where: (args as any)?.where,
+            where: safeArgs?.where,
             data: { deletedAt: new Date() },
           });
         },
