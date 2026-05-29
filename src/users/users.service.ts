@@ -1,6 +1,10 @@
 import { PrismaService } from '@/prisma/prisma.service';
 import { Prisma } from '@gen/prisma/client';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -25,18 +29,30 @@ export class UsersService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const password = await bcrypt.hash(createUserDto.password, 12);
+  private async assertEmailAvailable(email: string, excludeId?: number) {
+    const taken = await this.repo.findFirst({
+      where: {
+        email,
+        ...(excludeId !== undefined && { NOT: { id: excludeId } }),
+      },
+      select: { id: true },
+    });
 
-    // this.prisma.user.create({
-    //   data: {
-    //     name: createUserDto.name,
-    //     lastName: createUserDto.lastName,
-    //     email: createUserDto.email,
-    //     password,
-    //   },
-    //   select: userSelect,
-    // });
+    if (taken) {
+      throw new ConflictException({
+        message: {
+          email: ['El correo electrónico ya está en uso'],
+        },
+        error: 'Conflict',
+        statusCode: 409,
+      });
+    }
+  }
+
+  async create(createUserDto: CreateUserDto) {
+    await this.assertEmailAvailable(createUserDto.email);
+
+    const password = await bcrypt.hash(createUserDto.password, 12);
 
     return this.repo.create({
       data: {
@@ -88,6 +104,7 @@ export class UsersService {
     }
 
     if (updateUserDto.email !== undefined) {
+      await this.assertEmailAvailable(updateUserDto.email, id);
       data.email = updateUserDto.email;
     }
 
@@ -107,7 +124,7 @@ export class UsersService {
     await this.repo.update({
       where: { id },
       data: {
-        email: `deleted+${user.id}|${user.email}`,
+        email: `${user.email}|deleted+${user.id}`,
         deletedAt: new Date(),
       },
     });
