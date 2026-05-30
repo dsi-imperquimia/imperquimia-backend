@@ -28,7 +28,7 @@
     "prisma:generate": "prisma generate",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:status": "prisma migrate status",
-    "prisma:seed": "ts-node --project tsconfig.json -r tsconfig-paths/register prisma/seed.ts",
+    "prisma:seed": "prisma db seed",
     "postinstall": "[ -d prisma/generated/prisma ] || prisma generate"
   },
   "dependencies": {
