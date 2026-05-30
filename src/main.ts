@@ -1,5 +1,6 @@
 import 'dotenv/config';
 
+import { env } from '@/config/env.config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -13,6 +14,16 @@ async function bootstrap() {
    * para aprovechar las características específicas de Express.
    */
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  /**
+   * Coors
+   */
+  app.enableCors({
+    origin: '*', // Permitir solicitudes desde cualquier origen
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos HTTP permitidos
+    preflightContinue: false, // No pasar la solicitud de preflight a la siguiente función de middleware
+    // optionsSuccessStatus: 204, // Respuesta para solicitudes de preflight exitosas
+  });
   /**
    * Configurar la aplicación para usar tuberías de validación globales.
    */
@@ -25,8 +36,8 @@ async function bootstrap() {
    * Iniciar el servidor en el puerto especificado en las variables de entorno o en el puerto 3000 por defecto.
    * El servidor escuchará en todas las interfaces de red
    */
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0', () => {
-    console.log(`Server is running on port ${process.env.PORT ?? 3000}`);
+  await app.listen(env.PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${env.PORT}`);
   });
 
   /**

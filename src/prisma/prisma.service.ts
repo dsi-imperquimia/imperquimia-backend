@@ -1,3 +1,4 @@
+import { env } from '@/config/env.config';
 import { Prisma, PrismaClient } from '@gen/prisma/client';
 import {
   Injectable,
@@ -54,14 +55,8 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    const connectionString = process.env.DATABASE_URL;
-
-    if (!connectionString) {
-      throw new Error('DATABASE_URL is required to initialize PrismaService');
-    }
-
     super({
-      adapter: new PrismaPg({ connectionString }),
+      adapter: new PrismaPg({ connectionString: env.DATABASE_URL }),
     });
   }
 
