@@ -14,6 +14,16 @@ async function bootstrap() {
    * para aprovechar las características específicas de Express.
    */
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  /**
+   * Coors
+   */
+  app.enableCors({
+    origin: '*', // Permitir solicitudes desde cualquier origen
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos HTTP permitidos
+    preflightContinue: false, // No pasar la solicitud de preflight a la siguiente función de middleware
+    // optionsSuccessStatus: 204, // Respuesta para solicitudes de preflight exitosas
+  });
   /**
    * Configurar la aplicación para usar tuberías de validación globales.
    */
