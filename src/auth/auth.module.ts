@@ -1,4 +1,5 @@
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
+import { env } from '@/config/env.config';
 import { UsersModule } from '@/users/users.module';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -12,7 +13,7 @@ import { AuthService } from './auth.service';
     JwtModule.registerAsync({
       global: true,
       useFactory: () => ({
-        secret: process.env.JWT_SECRET,
+        secret: env.JWT_SECRET,
         signOptions: { expiresIn: '24h' },
       }),
     }),
