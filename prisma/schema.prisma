@@ -25,3 +25,11 @@ model User {
 
   @@map("mnt_users")
 }
+
+model Cargo {
+  id_cargo    Int     @id @default(autoincrement())
+  nombre_cargo String @unique
+  deletedAt   DateTime? @map("deleted_at")
+
+  @@map("cargos")
+}
