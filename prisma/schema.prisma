@@ -31,5 +31,5 @@ model Cargo {
   nombre_cargo String @unique
   deletedAt   DateTime? @map("deleted_at")
 
-  @@map("cargos")
+  @@map("mnt_cargos")
 }
