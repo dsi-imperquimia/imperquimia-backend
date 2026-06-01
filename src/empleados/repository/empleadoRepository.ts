@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { Empleado } from '@gen/prisma/client';
 
 // Repositorio para la tabla `empleados`
 // Maneja todas las operaciones CRUD con la BD usando Prisma
@@ -9,30 +10,26 @@ export class EmpleadoRepository {
 
   // Obtiene todos los empleados
   findMany() {
-    return this.prisma.empleado.findMany();
+    return this.prisma.models.empleado.findMany();
   }
 
   // Busca un empleado por id
   findUnique(id: number) {
-    return this.prisma.empleado.findUnique({
+    return this.prisma.models.empleado.findUnique({
       where: { id },
     });
   }
 
   // Crea un nuevo empleado
-  create(data: {
-    nombreCompleto: string;
-    dui: string;
-    nit: string;
-    cargoId: number;
-    activo?: boolean;
-  }) {
-    return this.prisma.empleado.create({ data });
+  create(
+    data: Omit<Empleado, 'id' | 'createdAt' | 'updatedAt' | 'fechaRegistro'>,
+  ) {
+    return this.prisma.models.empleado.create({ data });
   }
 
   // Actualiza un empleado por id
-  update(id: number, data: Partial<Record<string, unknown>>) {
-    return this.prisma.empleado.update({
+  update(id: number, data: Partial<Empleado>) {
+    return this.prisma.models.empleado.update({
       where: { id },
       data,
     });
@@ -40,6 +37,6 @@ export class EmpleadoRepository {
 
   // Elimina un empleado por id
   delete(id: number) {
-    return this.prisma.empleado.delete({ where: { id } });
+    return this.prisma.models.empleado.delete({ where: { id } });
   }
 }

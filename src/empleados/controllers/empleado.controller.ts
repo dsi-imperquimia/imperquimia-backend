@@ -37,7 +37,10 @@ export class EmpleadoController {
 
   // PATCH /empleados/:id -> actualizar
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateEmpleadoDto: UpdateEmpleadoDto) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateEmpleadoDto: UpdateEmpleadoDto,
+  ) {
     return this.empleadoService.update(id, updateEmpleadoDto);
   }
 

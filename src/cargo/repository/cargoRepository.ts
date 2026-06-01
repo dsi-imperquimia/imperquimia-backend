@@ -9,24 +9,24 @@ export class CargoRepository {
 
   // Obtiene todos los cargos
   findMany() {
-    return this.prisma.cargo.findMany();
+    return this.prisma.models.cargo.findMany();
   }
 
   // Busca un cargo por id
   findUnique(id: number) {
-    return this.prisma.cargo.findUnique({
+    return this.prisma.models.cargo.findUnique({
       where: { id },
     });
   }
 
   // Crea un nuevo cargo
   create(data: { nombre: string }) {
-    return this.prisma.cargo.create({ data });
+    return this.prisma.models.cargo.create({ data });
   }
 
   // Actualiza un cargo por id
   update(id: number, data: { nombre?: string }) {
-    return this.prisma.cargo.update({
+    return this.prisma.models.cargo.update({
       where: { id },
       data,
     });
@@ -34,7 +34,6 @@ export class CargoRepository {
 
   // Elimina un cargo por id
   delete(id: number) {
-    return this.prisma.cargo.delete({ where: { id } });
+    return this.prisma.models.cargo.delete({ where: { id } });
   }
 }
-
