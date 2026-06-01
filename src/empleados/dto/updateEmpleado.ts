@@ -4,7 +4,7 @@ import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
 export class UpdateEmpleadoDto {
   @IsOptional()
   @IsString()
-  nombre_completo?: string;
+  nombreCompleto?: string;
 
   @IsOptional()
   @IsString()
@@ -16,11 +16,7 @@ export class UpdateEmpleadoDto {
 
   @IsOptional()
   @IsInt()
-  id_cargo?: number;
-
-  @IsOptional()
-  @IsInt()
-  id_rol?: number;
+  cargoId?: number;
 
   @IsOptional()
   @IsBoolean()

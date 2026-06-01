@@ -4,7 +4,7 @@ import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
 export class CreateEmpleadoDto {
   @IsString()
   // Nombre completo del empleado
-  nombre_completo!: string;
+  nombreCompleto!: string;
 
   @IsString()
   // DUI (documento único de identidad)
@@ -16,11 +16,7 @@ export class CreateEmpleadoDto {
 
   @IsInt()
   // FK hacia la tabla cargos
-  id_cargo!: number;
-
-  @IsInt()
-  // FK hacia la tabla roles
-  id_rol!: number;
+  cargoId!: number;
 
   @IsOptional()
   @IsBoolean()

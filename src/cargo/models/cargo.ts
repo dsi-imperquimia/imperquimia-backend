@@ -1,6 +1,8 @@
+// Modelo TypeScript que representa un Cargo
 export interface Cargo {
-  id_cargo: number;
-  nombre_cargo: string;
+  id: number;
+  nombre: string;
+  deletedAt?: Date | null;
 }
 
 export type CargoResponse = Cargo;

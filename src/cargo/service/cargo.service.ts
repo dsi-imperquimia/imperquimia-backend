@@ -9,7 +9,7 @@ export class CargoService {
   constructor(private readonly repo: CargoRepository) {}
 
   async create(createCargoDto: CreateCargoDto): Promise<CargoResponse> {
-    return this.repo.create({ nombre_cargo: createCargoDto.nombre_cargo });
+    return this.repo.create({ nombre: createCargoDto.nombre });
   }
 
   async findAll(): Promise<CargoResponse[]> {
@@ -17,7 +17,7 @@ export class CargoService {
   }
 
   async findOne(id: number): Promise<CargoResponse> {
-    const cargo = await this.repo.idfindUnique(id);
+    const cargo = await this.repo.findUnique(id);
     if (!cargo) {
       throw new NotFoundException(`Cargo #${id} not found`);
     }
@@ -30,7 +30,7 @@ export class CargoService {
   ): Promise<CargoResponse> {
     await this.findOne(id);
     return this.repo.update(id, {
-      nombre_cargo: updateCargoDto.nombre_cargo,
+      nombre: updateCargoDto.nombre,
     });
   }
 

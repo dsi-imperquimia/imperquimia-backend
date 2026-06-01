@@ -12,11 +12,10 @@ export class EmpleadoService {
   async create(createEmpleadoDto: CreateEmpleadoDto): Promise<EmpleadoResponse> {
     // Aquí podrías añadir validaciones adicionales (p.ej. DUI/NIT únicos)
     return this.repo.create({
-      nombre_completo: createEmpleadoDto.nombre_completo,
+      nombreCompleto: createEmpleadoDto.nombreCompleto,
       dui: createEmpleadoDto.dui,
       nit: createEmpleadoDto.nit,
-      id_cargo: createEmpleadoDto.id_cargo,
-      id_rol: createEmpleadoDto.id_rol,
+      cargoId: createEmpleadoDto.cargoId,
       activo: createEmpleadoDto.activo ?? true,
     });
   }

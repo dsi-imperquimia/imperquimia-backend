@@ -27,23 +27,28 @@ model User {
 }
 
 model Empleado {
-  id_empleado   Int      @id @default(autoincrement())
-  nombre_completo String @map("nombre_completo")
-  dui            String  @unique
-  nit            String  @unique
-  id_cargo       Int     @map("id_cargo")
-  id_rol         Int     @map("id_rol")
-  activo         Boolean @default(true)
-  fecha_registro DateTime @default(now()) @map("fecha_registro")
+  id             Int       @id @default(autoincrement())
+  nombreCompleto String    @map("nombre_completo")
+  dui            String    @unique
+  nit            String    @unique
+  cargoId        Int       @map("id_cargo")
+  activo         Boolean   @default(true)
+  fechaRegistro  DateTime  @default(now()) @map("fecha_registro")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
+
+  cargo          Cargo?   @relation(fields: [cargoId], references: [id])
 
   @@map("mnt_empleados")
 }
 
 model Cargo {
-  id_cargo    Int     @id @default(autoincrement())
-  nombre_cargo String @unique
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
   deletedAt   DateTime? @map("deleted_at")
+
+  empleados   Empleado[]
 
   @@map("mnt_cargos")
 }
