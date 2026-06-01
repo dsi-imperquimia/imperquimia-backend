@@ -26,6 +26,20 @@ model User {
   @@map("mnt_users")
 }
 
+model Empleado {
+  id_empleado   Int      @id @default(autoincrement())
+  nombre_completo String @map("nombre_completo")
+  dui            String  @unique
+  nit            String  @unique
+  id_cargo       Int     @map("id_cargo")
+  id_rol         Int     @map("id_rol")
+  activo         Boolean @default(true)
+  fecha_registro DateTime @default(now()) @map("fecha_registro")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@map("mnt_empleados")
+}
+
 model Cargo {
   id_cargo    Int     @id @default(autoincrement())
   nombre_cargo String @unique
