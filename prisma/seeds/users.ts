@@ -11,6 +11,7 @@ export async function seedUsers(prisma: PrismaClient) {
       name: 'Admin',
       lastName: 'System',
       email: 'admin@imperquimia.com',
+      roleId: 1,
       password: await bcrypt.hash('123456', 12),
     },
   ];
