@@ -70,7 +70,7 @@ model Permission {
   updatedAt   DateTime?    @updatedAt @map("updated_at")
   deletedAt   DateTime?    @map("deleted_at")
 
-  @@map("mnt_roles")
+  @@map("mnt_permissions")
 }
 
 model Role {
@@ -81,10 +81,10 @@ model Role {
   permissions RolePermission[]
 
   createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime?     @updatedAt @map("updated_at")
+  updatedAt   DateTime?    @updatedAt @map("updated_at")
   deletedAt   DateTime?    @map("deleted_at")
 
-  @@map("mnt_group_roles")
+  @@map("mnt_roles")
 }
 
 model UserPermission {
@@ -100,12 +100,12 @@ model UserPermission {
 }
 
 model RolePermission {
-  roleId       Int         @map("group_id")
+  roleId       Int         @map("role_id")
   permissionId Int         @map("permission_id")
 
-  group        Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
-  @@map("mnt_group_roles_roles")
+  @@map("mnt_role_permissions")
 }
