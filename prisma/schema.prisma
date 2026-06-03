@@ -25,3 +25,30 @@ model User {
 
   @@map("mnt_users")
 }
+
+model Empleado {
+  id             Int       @id @default(autoincrement())
+  nombreCompleto String    @map("nombre_completo")
+  dui            String    @unique
+  nit            String    @unique
+  cargoId        Int       @map("id_cargo")
+  activo         Boolean   @default(true)
+  fechaRegistro  DateTime  @default(now()) @map("fecha_registro")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  cargo          Cargo?   @relation(fields: [cargoId], references: [id])
+
+  @@map("mnt_empleados")
+}
+
+model Cargo {
+  id          Int       @id @default(autoincrement())
+  nombre      String    @unique
+  deletedAt   DateTime? @map("deleted_at")
+
+  empleados   Empleado[]
+
+  @@map("mnt_cargos")
+}
