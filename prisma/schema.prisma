@@ -124,6 +124,7 @@ model DetalleCotizacion {
 model Permission {
   id          Int          @id @default(autoincrement())
   name        String
+  description String?
   
   users       UserPermission[]
   roles       RolePermission[]
@@ -138,6 +139,7 @@ model Permission {
 model Role {
   id          Int          @id @default(autoincrement())
   name        String
+  description String?
 
   users       User[]
   permissions RolePermission[]
