@@ -9,39 +9,44 @@ export async function seedRoles(prisma: PrismaClient) {
   /**
    * Permisos
    */
+  // prettier-ignore
   const userPermissions: PermissionType[] = [
-    { id: 1, name: 'USER_CREATE' },
-    { id: 2, name: 'USER_READ' },
-    { id: 3, name: 'USER_UPDATE' },
-    { id: 4, name: 'USER_DELETE' },
+    { id: 1, name: 'USER_CREATE', description: 'Permiso para crear usuarios' },
+    { id: 2, name: 'USER_READ', description: 'Permiso para leer usuarios' },
+    { id: 3, name: 'USER_UPDATE', description: 'Permiso para actualizar usuarios' },
+    { id: 4, name: 'USER_DELETE', description: 'Permiso para eliminar usuarios' },
   ];
 
+  // prettier-ignore
   const empleadosPermissions: PermissionType[] = [
-    { id: 5, name: 'EMPLEADO_CREATE' },
-    { id: 6, name: 'EMPLEADO_READ' },
-    { id: 7, name: 'EMPLEADO_UPDATE' },
-    { id: 8, name: 'EMPLEADO_DELETE' },
+    { id: 5, name: 'EMPLEADO_CREATE', description: 'Permiso para crear empleados' },
+    { id: 6, name: 'EMPLEADO_READ', description: 'Permiso para leer empleados' },
+    { id: 7, name: 'EMPLEADO_UPDATE', description: 'Permiso para actualizar empleados' },
+    { id: 8, name: 'EMPLEADO_DELETE', description: 'Permiso para eliminar empleados' },
   ];
 
+  // prettier-ignore
   const cargoEmpleadosPermissions: PermissionType[] = [
-    { id: 9, name: 'CARGO_EMPLEADO_CREATE' },
-    { id: 10, name: 'CARGO_EMPLEADO_READ' },
-    { id: 11, name: 'CARGO_EMPLEADO_UPDATE' },
-    { id: 12, name: 'CARGO_EMPLEADO_DELETE' },
+    { id: 9, name: 'CARGO_EMPLEADO_CREATE', description: 'Permiso para crear cargos de empleados' },
+    { id: 10, name: 'CARGO_EMPLEADO_READ', description: 'Permiso para leer cargos de empleados' },
+    { id: 11, name: 'CARGO_EMPLEADO_UPDATE', description: 'Permiso para actualizar cargos de empleados' },
+    { id: 12, name: 'CARGO_EMPLEADO_DELETE', description: 'Permiso para eliminar cargos de empleados' },
   ];
 
+  // prettier-ignore
   const cotizacionesPermissions: PermissionType[] = [
-    { id: 13, name: 'COTIZACIONES_CREATE' },
-    { id: 14, name: 'COTIZACIONES_READ' },
-    { id: 15, name: 'COTIZACIONES_UPDATE' },
-    { id: 16, name: 'COTIZACIONES_DELETE' },
+    { id: 13, name: 'COTIZACIONES_CREATE', description: 'Permiso para crear cotizaciones' },
+    { id: 14, name: 'COTIZACIONES_READ', description: 'Permiso para leer cotizaciones' },
+    { id: 15, name: 'COTIZACIONES_UPDATE', description: 'Permiso para actualizar cotizaciones' },
+    { id: 16, name: 'COTIZACIONES_DELETE', description: 'Permiso para eliminar cotizaciones' },
   ];
 
+  // prettier-ignore
   const proyectoPermissions: PermissionType[] = [
-    { id: 17, name: 'PROYECTO_CREATE' },
-    { id: 18, name: 'PROYECTO_READ' },
-    { id: 19, name: 'PROYECTO_UPDATE' },
-    { id: 20, name: 'PROYECTO_DELETE' },
+    { id: 17, name: 'PROYECTO_CREATE', description: 'Permiso para crear proyectos' },
+    { id: 18, name: 'PROYECTO_READ', description: 'Permiso para leer proyectos' },
+    { id: 19, name: 'PROYECTO_UPDATE', description: 'Permiso para actualizar proyectos' },
+    { id: 20, name: 'PROYECTO_DELETE', description: 'Permiso para eliminar proyectos' },
   ];
 
   const permissions: PermissionType[] = [
@@ -55,7 +60,10 @@ export async function seedRoles(prisma: PrismaClient) {
   for (const permission of permissions) {
     await prisma.permission.upsert({
       where: { id: permission.id },
-      update: { updatedAt: new Date() },
+      update: {
+        description: permission.description,
+        updatedAt: new Date(),
+      },
       create: permission,
     });
   }
@@ -71,19 +79,24 @@ export async function seedRoles(prisma: PrismaClient) {
       id: 1,
       name: 'Administrador',
       permissionIds: permissions.map((p) => p.id),
+      description: 'Administrador con todos los permisos',
     },
     {
       id: 2,
       name: 'Jefe de proyecto',
       permissionIds: empleadosPermissions.map((p) => p.id),
+      description: 'Jefe de proyecto',
     },
-    { id: 3, name: 'Técnico', permissionIds: [] },
+    { id: 3, name: 'Técnico', permissionIds: [], description: 'Técnico' },
   ];
 
   for (const { permissionIds, ...role } of roles) {
     await prisma.role.upsert({
       where: { id: role.id },
-      update: { updatedAt: new Date() },
+      update: {
+        description: role.description,
+        updatedAt: new Date(),
+      },
       create: role,
     });
 
