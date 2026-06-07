@@ -4,8 +4,8 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "./generated/prisma"
+  provider     = "prisma-client"
+  output       = "./generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -23,6 +23,8 @@ model User {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
+ cotizaciones Cotizacion[] 
+ 
   @@map("mnt_users")
 }
 
@@ -55,6 +57,66 @@ model Cargo {
   @@map("mnt_cargos")
 }
 
+enum EstadoCotizacion {
+  ACTIVA
+  DESACTIVADA
+}
+
+model Material {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  descripcion    String?
+  unidad         String
+  costoUnitario  Decimal  @db.Decimal(10, 2) @map("costo_unitario")
+  estado         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  detalles       DetalleCotizacion[]
+
+  @@map("mnt_materiales")
+}
+
+model Cotizacion {
+  id          Int      @id @default(autoincrement())
+  descripcion String
+  cliente     String
+
+  userId      Int      @map("user_id")
+  user        User     @relation(fields: [userId], references: [id])
+
+  subTotal    Decimal  @db.Decimal(10, 2) @default(0) @map("sub_total")
+  totalIva    Decimal  @db.Decimal(10, 2) @default(0) @map("total_iva")
+  total       Decimal  @db.Decimal(10, 2) @default(0)
+  estado      EstadoCotizacion @default(ACTIVA)
+
+  detalles    DetalleCotizacion[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  @@map("cot_cotizaciones")
+}
+
+model DetalleCotizacion {
+  id Int @id @default(autoincrement())
+
+  cotizacionId Int        @map("cotizacion_id")
+  cotizacion   Cotizacion @relation(fields: [cotizacionId], references: [id])
+
+  materialId Int      @map("material_id")
+  material   Material @relation(fields: [materialId], references: [id])
+
+  cantidad      Decimal  @db.Decimal(10, 2)
+  unidad        String
+  costoUnitario Decimal  @db.Decimal(10, 2) @map("costo_unitario")
+  subTotal      Decimal  @db.Decimal(10, 2) @map("sub_total")
+  totalIva      Decimal  @db.Decimal(10, 2) @default(0) @map("total_iva")
+  total         Decimal  @db.Decimal(10, 2) @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("cot_detalle_cotizaciones")
+}
 // GPRCIMPER-88: Catálogo de Habilidades
 model Habilidad {
   id          Int       @id @default(autoincrement())
