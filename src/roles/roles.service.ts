@@ -28,11 +28,8 @@ export class RolesService {
       skipDuplicates: true,
     });
 
-    return role;
-  }
-
-  async findAll() {
-    return await this.repo.findMany({
+    const roleWithPermissions = await this.repo.findUnique({
+      where: { id: role.id },
       select: {
         id: true,
         name: true,
@@ -50,10 +47,47 @@ export class RolesService {
         },
       },
     });
+
+    if (!roleWithPermissions) return null;
+
+    return {
+      ...roleWithPermissions,
+      permissions: roleWithPermissions.permissions.map((rp) => rp.permission),
+      permissionsIds: roleWithPermissions.permissions.map(
+        (rp) => rp.permission.id,
+      ),
+    };
+  }
+
+  async findAll() {
+    const roles = await this.repo.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        permissions: {
+          select: {
+            permission: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return roles.map((role) => ({
+      ...role,
+      permissions: role.permissions.map((rp) => rp.permission),
+      permissionsIds: role.permissions.map((rp) => rp.permission.id),
+    }));
   }
 
   async findOne(id: number) {
-    return await this.repo.findUnique({
+    const role = await this.repo.findUnique({
       where: { id },
       select: {
         id: true,
@@ -72,6 +106,14 @@ export class RolesService {
         },
       },
     });
+
+    if (!role) return null;
+
+    return {
+      ...role,
+      permissions: role.permissions.map((rp) => rp.permission),
+      permissionsIds: role.permissions.map((rp) => rp.permission.id),
+    };
   }
 
   async update(id: number, updateRoleDto: UpdateRoleDto) {
@@ -84,6 +126,18 @@ export class RolesService {
       select: {
         id: true,
         name: true,
+        description: true,
+        permissions: {
+          select: {
+            permission: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -101,7 +155,35 @@ export class RolesService {
       });
     }
 
-    return role;
+    const roleWithPermissions = await this.repo.findUnique({
+      where: { id: role.id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        permissions: {
+          select: {
+            permission: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!roleWithPermissions) return null;
+
+    return {
+      ...roleWithPermissions,
+      permissions: roleWithPermissions.permissions.map((rp) => rp.permission),
+      permissionsIds: roleWithPermissions.permissions.map(
+        (rp) => rp.permission.id,
+      ),
+    };
   }
 
   async remove(id: number) {
