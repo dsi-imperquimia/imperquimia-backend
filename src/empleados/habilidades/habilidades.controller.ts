@@ -1,10 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, BadRequestException, ParseIntPipe } from '@nestjs/common';
 import { HabilidadesService } from './habilidades.service';
 import { CreateHabilidadeDto } from './dto/create-habilidade.dto';
 import { UpdateHabilidadeDto } from './dto/update-habilidade.dto';
 
 
-@Controller('habilidades')
+@Controller('empleados/habilidades')
 export class HabilidadesController {
   constructor(private readonly habilidadesService: HabilidadesService) {}
     
@@ -35,9 +35,9 @@ export class HabilidadesController {
 
   // Eliminar habilidad (GPRCIMPER-88)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  remove(@Param('id', ParseIntPipe) id: number) {
     // Convertimos el parámetro 'id' de string a número usando el operador '+'
     // delegando la lógica de validación (si está asignada a empleados activos) al servicio.
-    return this.habilidadesService.remove(+id);        
+    return this.habilidadesService.remove(id);
   }
 }
