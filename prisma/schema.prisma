@@ -13,6 +13,10 @@ datasource db {
   provider = "postgresql"
 }
 
+// ==========================================
+// MODELO: USUARIOS Y EMPLEADOS
+// ==========================================
+
 model User {
   id        Int @id @default(autoincrement())
   name      String
@@ -22,6 +26,12 @@ model User {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
+
+  // ==========================================
+  // RELACIÓN: USER -> EMPLEADO
+  // ==========================================
+  // empleadoId Int?      @unique @map("id_empleado")
+  // empleado   Empleado? @relation(fields: [empleadoId], references: [id])
 
  cotizaciones Cotizacion[] 
  
@@ -40,6 +50,11 @@ model Empleado {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
+  // ==========================================
+  // CONTRAPARTE: EMPLEADO -> USER
+  // ==========================================
+  // user           User?
+
   cargo          Cargo?   @relation(fields: [cargoId], references: [id])
 
   @@map("mnt_empleados")
@@ -55,25 +70,15 @@ model Cargo {
   @@map("mnt_cargos")
 }
 
+// ==========================================
+// MODELO: COTIZACIONES
+// ==========================================
+
 enum EstadoCotizacion {
   ACTIVA
   DESACTIVADA
 }
 
-model Material {
-  id             Int      @id @default(autoincrement())
-  nombre         String
-  descripcion    String?
-  unidad         String
-  costoUnitario  Decimal  @db.Decimal(10, 2) @map("costo_unitario")
-  estado         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  detalles       DetalleCotizacion[]
-
-  @@map("mnt_materiales")
-}
 
 model Cotizacion {
   id          Int      @id @default(autoincrement())
@@ -114,4 +119,110 @@ model DetalleCotizacion {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("cot_detalle_cotizaciones")
+}
+
+// ==========================================
+// MODELO: Materiales
+// ==========================================
+
+model Material {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  descripcion    String?
+  unidad         String
+  costoUnitario  Decimal  @db.Decimal(10, 2) @map("costo_unitario")
+  estado         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  detalles       DetalleCotizacion[]
+
+  @@map("mnt_materiales")
+}
+
+// ==========================================
+// MODELO: INVENTARIO DE HERRAMIENTAS
+// ==========================================
+
+enum EstadoHerramienta {
+  DISPONIBLE
+  EN_PROYECTO
+  MANTENIMIENTO
+  DANADA
+  DESECHO
+}
+
+enum AreaMovimiento {
+  BODEGA
+  PROYECTO
+  TALLER
+  DESECHO
+}
+
+model Herramienta {
+  id          Int               @id @default(autoincrement())
+  codigoUnico String            @unique @map("codigo_unico")
+  nombre      String            
+  marca       String            
+  tipo        String            
+  estado      EstadoHerramienta @default(DISPONIBLE)
+
+  // Si está en un proyecto, tendrá el ID, permitiendo buscar "todas las del proyecto X".
+  proyectoId Int?      @map("id_proyecto")
+  proyecto   Proyecto? @relation(fields: [proyectoId], references: [id])
+
+  movimientos MovimientoHerramienta[]
+
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@map("inv_herramientas")
+}
+
+
+model MovimientoHerramienta {
+  id Int @id @default(autoincrement())
+  herramientaId Int         @map("id_herramienta")
+  herramienta   Herramienta @relation(fields: [herramientaId], references: [id])
+  usuarioId Int  @map("id_usuario")
+  usuario   User @relation(fields: [usuarioId], references: [id])
+  origen  AreaMovimiento
+  destino AreaMovimiento
+  proyectoDestinoId Int?      @map("id_proyecto_destino")
+  proyectoDestino   Proyecto? @relation(fields: [proyectoDestinoId], references: [id])
+
+  // Guardamos el estado en el que quedó la herramienta después de este movimiento
+  estadoHerramienta EstadoHerramienta @map("estado_herramienta")
+  fechaMovimiento DateTime @default(now()) @map("fecha_movimiento")
+  observaciones   String?  @db.Text
+
+  @@map("inv_movimientos_herramientas")
+}
+
+// ==========================================
+// MODELO: Proyecto
+// ==========================================
+
+enum EstadoProyecto {
+  ACTIVO
+  FINALIZADO
+  PAGADO
+  GARANTIA
+}
+
+model Proyecto {
+  id        Int            @id @default(autoincrement())
+  nombre    String
+  ubicacion String?        
+  estado    EstadoProyecto @default(ACTIVO)
+
+  // Relaciones inversas para consultar las herramientas actuales del proyecto y las que han tenido
+  herramientas   Herramienta[] 
+  movimientos    MovimientoHerramienta[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@map("proy_proyectos")
 }
