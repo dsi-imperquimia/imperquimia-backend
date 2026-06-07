@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { env } from '@/config/env.config';
 import { PrismaClient } from '@gen/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { seedRoles } from './roolesSeed';
 import { seedUsers } from './users';
 
 const prisma = new PrismaClient({
@@ -10,6 +11,7 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  await seedRoles(prisma);
   await seedUsers(prisma);
 }
 
