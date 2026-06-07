@@ -33,7 +33,8 @@ model User {
   // empleadoId Int?      @unique @map("id_empleado")
   // empleado   Empleado? @relation(fields: [empleadoId], references: [id])
 
- cotizaciones Cotizacion[] 
+ cotizaciones Cotizacion[]
+ movimientos  MovimientoHerramienta[] 
  
   @@map("mnt_users")
 }
