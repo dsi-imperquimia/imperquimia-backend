@@ -21,7 +21,7 @@ model User {
   password    String
 
   cotizaciones Cotizacion[] 
- 
+
   roleId      Int?         @map("role_id")
   permissions UserPermission[]
 
