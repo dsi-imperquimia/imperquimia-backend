@@ -9,6 +9,7 @@ export class PermissionsService {
       select: {
         id: true,
         name: true,
+        description: true,
       },
       orderBy: {
         id: 'asc',

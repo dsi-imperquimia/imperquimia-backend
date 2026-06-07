@@ -11,10 +11,12 @@ export class RolesService {
     const role = await this.repo.create({
       data: {
         name: createRoleDto.name,
+        description: createRoleDto.description,
       },
       select: {
         id: true,
         name: true,
+        description: true,
       },
     });
 
@@ -34,12 +36,14 @@ export class RolesService {
       select: {
         id: true,
         name: true,
+        description: true,
         permissions: {
           select: {
             permission: {
               select: {
                 id: true,
                 name: true,
+                description: true,
               },
             },
           },
@@ -54,12 +58,14 @@ export class RolesService {
       select: {
         id: true,
         name: true,
+        description: true,
         permissions: {
           select: {
             permission: {
               select: {
                 id: true,
                 name: true,
+                description: true,
               },
             },
           },
@@ -73,6 +79,7 @@ export class RolesService {
       where: { id },
       data: {
         name: updateRoleDto.name,
+        description: updateRoleDto.description,
       },
       select: {
         id: true,

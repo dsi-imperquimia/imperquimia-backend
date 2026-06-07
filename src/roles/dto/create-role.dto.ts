@@ -9,6 +9,11 @@ export class CreateRoleDto {
   })
   name: string = '';
 
+  @IsString({
+    message: 'La descripción del rol debe ser una cadena de texto',
+  })
+  description?: string = '';
+
   @IsArray({
     message: 'Las permissions deben ser un arreglo de números',
   })
