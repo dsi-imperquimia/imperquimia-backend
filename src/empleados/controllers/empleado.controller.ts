@@ -49,4 +49,12 @@ export class EmpleadoController {
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.empleadoService.remove(id);
   }
+
+  @Patch(':id/habilidades')
+  async actualizarHabilidades(
+  @Param('id', ParseIntPipe) id: number,
+  @Body('habilidadesIds') habilidadesIds: number[]
+) {
+   return await this.empleadoService.asignarHabilidades(id, habilidadesIds, 'AdminLogueado');
+  }
 }

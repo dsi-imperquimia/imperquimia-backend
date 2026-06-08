@@ -27,7 +27,7 @@ export class HabilidadesService {
 
     // 3. Si existe, lanzamos un error 409 (Conflict)
     if (habilidadExiste) {
-      throw new ConflictException('La habilidad "${nombreLimpio}" ya está registrada en el catálogo.,');
+      throw new ConflictException(`La habilidad "${nombreLimpio}" ya está registrada en el catálogo.,`);
     }
 
     // 4. Si no existe, se crea con éxito
@@ -46,11 +46,9 @@ export class HabilidadesService {
         },
       });
     } catch (error) {
-      console.error('Error al recuperar habilidades:', error);
+      console.error(`Error al recuperar habilidades:`, error);
       // Manejo de errores interno por si falla la conexión a PostgreSQL
-      throw new BadRequestException(
-        'No se pudo recuperar el catálogo de habilidades.',
-      );
+      throw new BadRequestException(`No se pudo recuperar el catálogo de habilidades.`,);
     }
     //return This action returns all habilidades;
   }
@@ -65,7 +63,7 @@ export class HabilidadesService {
       where: { id },
     });
     if (!habilidadExistente) {
-      throw new NotFoundException('La habilidad con ID ${id} no existe.');
+      throw new NotFoundException(`La habilidad con ID ${id} no existe.`);
     }
     // 2. Si están intentando cambiar el nombre, validar duplicados
     if (updateHabilidadeDto.nombre) {
@@ -80,14 +78,14 @@ export class HabilidadesService {
         },
       });
       if (duplicado) {
-        throw new ConflictException('La habilidad "${nombreLimpio}" ya existe en el catálogo.,');
+        throw new ConflictException(`La habilidad "${nombreLimpio}" ya existe en el catálogo.,`);
       }
       updateHabilidadeDto.nombre = nombreLimpio; // Guardar el nombre sin espacios extra
     }
     // 2. Actualizar la habilidad en el catálogo
     return await this.prisma.models.habilidad.update({
       where: { id },
-      data: UpdateHabilidadeDto,
+      data: updateHabilidadeDto,
     });
     //return This action updates a #${id} habilidade;
   }
@@ -103,9 +101,7 @@ export class HabilidadesService {
       });
     // 2. Si se encuentra un registro, lanzar excepción de BadRequest (error 400)
     if (asignadaAEmpleadoActivo) {
-      throw new BadRequestException(
-        'No se puede eliminar la habilidad porque está asignada a empleados activos.',
-      );
+      throw new BadRequestException(`No se puede eliminar la habilidad porque está asignada a empleados activos.`,);
     }
     // 3. Si no está asignada a nadie activo, proceder con la eliminación física
     return this.prisma.models.habilidad.delete({
