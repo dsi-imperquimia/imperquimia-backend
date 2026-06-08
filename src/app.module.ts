@@ -9,6 +9,9 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RolesModule } from './roles/roles.module';
 import { UsersModule } from './users/users.module';
+import { HerramientasModule } from './herramientas/herramientas.module';
+import { MovimientosModule } from './movimientos/movimientos.module';
+import { ProyectosModule } from './proyectos/proyectos.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { UsersModule } from './users/users.module';
     CotizacionModule,
     PermissionsModule,
     RolesModule,
+    HerramientasModule,
+    MovimientosModule,
+    ProyectosModule,
   ],
   controllers: [AppController],
   providers: [AppService],
