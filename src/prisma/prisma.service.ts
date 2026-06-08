@@ -9,8 +9,6 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-// DMMF from @gen/prisma/client is a type-only export — no runtime value.
-// Parse schema.prisma at module load instead.
 function buildSoftDeleteModelSet(): Set<string> {
   try {
     const schema = readFileSync(
@@ -33,21 +31,18 @@ function buildSoftDeleteModelSet(): Set<string> {
 
 const softDeleteModels = buildSoftDeleteModelSet();
 
-console.log(
-  `Soft delete enabled for models: ${[...softDeleteModels].join(', ')}`,
-);
+type BaseDelegate = {
+  update(args: unknown): Promise<unknown>;
+  updateMany(args: unknown): Promise<Prisma.BatchPayload>;
+};
 
-interface SoftDeleteContext<T, A> {
-  update(args: {
-    where: unknown;
-    data: { deletedAt: Date };
-  }): Promise<Prisma.Result<T, A, 'delete'>>;
-
-  updateMany(args: {
-    where?: unknown;
-    data: { deletedAt: Date };
-  }): Promise<Prisma.BatchPayload>;
-}
+const SOFT_DELETE_FINDS = new Set([
+  'findUnique',
+  'findUniqueOrThrow',
+  'findFirst',
+  'findFirstOrThrow',
+  'findMany',
+]);
 
 @Injectable()
 export class PrismaService
@@ -62,51 +57,17 @@ export class PrismaService
 
   public readonly models = this.$extends({
     name: 'softDelete',
-    model: {
-      $allModels: {
-        // delete/deleteMany must be intercepted here — in query extensions `this` is NOT
-        // the model delegate and has no CRUD methods. Models without deletedAt get a
-        // Prisma validation error; use the base PrismaService for those.
-        async delete<T, A>(
-          this: T,
-          args: Prisma.Exact<A, Prisma.Args<T, 'delete'>>,
-        ): Promise<Prisma.Result<T, A, 'delete'>> {
-          const ctx = Prisma.getExtensionContext(
-            this,
-          ) as unknown as SoftDeleteContext<T, A>;
-
-          const safeArgs = args as { where: unknown };
-
-          return ctx.update({
-            where: safeArgs.where,
-            data: { deletedAt: new Date() },
-          });
-        },
-        async deleteMany<T, A>(
-          this: T,
-          args?: Prisma.Exact<A, Prisma.Args<T, 'deleteMany'>>,
-        ): Promise<Prisma.BatchPayload> {
-          const ctx = Prisma.getExtensionContext(
-            this,
-          ) as unknown as SoftDeleteContext<T, A>;
-          const safeArgs = args as { where?: unknown } | undefined;
-
-          return ctx.updateMany({
-            where: safeArgs?.where,
-            data: { deletedAt: new Date() },
-          });
-        },
-      },
-    },
     query: {
       $allModels: {
-        async $allOperations({ model, operation, args, query }) {
-          if (
-            softDeleteModels.has(model) &&
-            (operation === 'findUnique' ||
-              operation === 'findFirst' ||
-              operation === 'findMany')
-          ) {
+        // Arrow function captures `this` (the unextended PrismaService).
+        // Calling this[delegate].update/updateMany bypasses the extension
+        // proxy entirely — no recursion possible.
+        $allOperations: async ({ model, operation, args, query }) => {
+          if (!softDeleteModels.has(model)) {
+            return query(args);
+          }
+
+          if (SOFT_DELETE_FINDS.has(operation)) {
             return query({
               ...args,
               where: {
@@ -115,6 +76,25 @@ export class PrismaService
               },
             });
           }
+
+          if (operation === 'delete' || operation === 'deleteMany') {
+            const delegateKey = model.charAt(0).toLowerCase() + model.slice(1);
+            const delegate = (this as unknown as Record<string, BaseDelegate>)[
+              delegateKey
+            ];
+
+            if (operation === 'delete') {
+              return delegate.update({
+                where: (args as { where: unknown }).where,
+                data: { deletedAt: new Date() },
+              });
+            }
+            return delegate.updateMany({
+              where: (args as { where?: unknown }).where,
+              data: { deletedAt: new Date() },
+            });
+          }
+
           return query(args);
         },
       },
