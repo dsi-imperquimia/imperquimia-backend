@@ -20,6 +20,37 @@ export async function seedProyectos(prisma: PrismaClient) {
       ubicacion: 'Apopa, San Salvador',
       estado: 'ACTIVO' as const,
     },
+    // --- 5 NUEVOS PROYECTOS (EDIFICIOS EN CONSTRUCCIÓN EN EL SALVADOR) ---
+    {
+      id: 4,
+      nombre: 'Torre Millennium Plaza (Fase II)',
+      ubicacion: 'Paseo General Escalón, San Salvador',
+      estado: 'ACTIVO' as const,
+    },
+    {
+      id: 5,
+      nombre: 'Condominio Alturas de Holanda',
+      ubicacion: 'Colonia Escalón Alto, San Salvador',
+      estado: 'ACTIVO' as const,
+    },
+    {
+      id: 6,
+      nombre: 'Complejo Residencial Humana',
+      ubicacion: 'Colonia San Benito, San Salvador',
+      estado: 'ACTIVO' as const,
+    },
+    {
+      id: 7,
+      nombre: 'Torres Districto El Espino',
+      ubicacion: 'Antiguo Cuscatlán, La Libertad',
+      estado: 'ACTIVO' as const,
+    },
+    {
+      id: 8,
+      nombre: 'Skyline Nuevo Cuscatlán',
+      ubicacion: 'Nuevo Cuscatlán, La Libertad',
+      estado: 'ACTIVO' as const,
+    },
   ];
 
   const proyectosCreados = [];
