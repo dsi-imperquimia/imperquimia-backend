@@ -11,6 +11,7 @@ export async function seedUsers(prisma: PrismaClient) {
       name: 'Admin',
       lastName: 'System',
       email: 'admin@imperquimia.com',
+      roleId: 1,
       password: await bcrypt.hash('123456', 12),
     },
   ];
@@ -28,6 +29,17 @@ export async function seedUsers(prisma: PrismaClient) {
       }),
     );
   }
+
+  /**
+   * Fix secuencia
+   */
+  await prisma.$executeRawUnsafe(`
+    SELECT setval(
+      pg_get_serial_sequence('"mnt_users"', 'id'),
+      COALESCE(MAX(id), 0) + 1, 
+      false
+    ) FROM "mnt_roles";
+  `);
 
   console.log(`Seeded ${userCreated.length} users.`);
   console.table(userCreated, ['id', 'name', 'lastName', 'email']);
