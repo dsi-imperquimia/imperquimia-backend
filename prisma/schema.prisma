@@ -166,7 +166,7 @@ model UserPermission {
 
 
   @@id([userId, permissionId])
-  @@map("mnt_user_roles")
+  @@map("mnt_user_permissions")
 }
 
 model RolePermission {

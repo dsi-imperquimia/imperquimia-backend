@@ -111,6 +111,24 @@ export async function seedRoles(prisma: PrismaClient) {
     }
   }
 
+  /**
+   * Fix secuencia
+   */
+  await prisma.$executeRawUnsafe(`
+    SELECT setval(
+      pg_get_serial_sequence('"mnt_roles"', 'id'),
+      COALESCE(MAX(id), 0) + 1,
+      false
+    ) FROM "mnt_roles";
+  `);
+  await prisma.$executeRawUnsafe(`
+    SELECT setval(
+      pg_get_serial_sequence('"mnt_permissions"', 'id'),
+      COALESCE(MAX(id), 0) + 1,
+      false
+    ) FROM "mnt_permissions";
+  `);
+
   console.log(`Seeded ${roles.length} roles.`);
   console.table(roles, ['id', 'name']);
 }
