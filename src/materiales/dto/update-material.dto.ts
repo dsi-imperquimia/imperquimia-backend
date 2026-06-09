@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsBoolean, IsUrl } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateMaterialDto {
@@ -22,4 +22,12 @@ export class UpdateMaterialDto {
   @IsBoolean()
   @IsOptional()
   estado?: boolean;
+
+  @IsString()
+  @IsOptional()
+  codigo?: string;
+
+  @IsString()
+  @IsOptional()
+  fichaTecnica?: string;
 }

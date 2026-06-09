@@ -19,6 +19,12 @@ export class MaterialRepository {
     });
   }
 
+  findByCodigo(codigo: string) {
+    return this.prisma.material.findUnique({
+      where: { codigo },
+    });
+  }
+
   create(data: Prisma.MaterialCreateInput) {
     return this.prisma.material.create({ data });
   }

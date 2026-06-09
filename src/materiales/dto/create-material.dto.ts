@@ -27,4 +27,12 @@ export class CreateMaterialDto {
   @IsBoolean()
   @IsOptional()
   estado?: boolean;
+
+  @IsString()
+  @IsOptional()
+  codigo?: string;
+
+  @IsString()
+  @IsOptional()
+  fichaTecnica?: string;
 }
