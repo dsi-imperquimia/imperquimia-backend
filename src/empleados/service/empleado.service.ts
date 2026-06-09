@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { EmpleadoRepository } from '../repository/empleadoRepository';
 import { CreateEmpleadoDto } from '../dto/createEmpleado';
 import { UpdateEmpleadoDto } from '../dto/updateEmpleado';
-import { Empleado } from '@gen/prisma/client';
+import { Empleado, Prisma } from '@gen/prisma/client';
 
 @Injectable()
 export class EmpleadoService {
+  prisma: any;
   constructor(private readonly repo: EmpleadoRepository) {}
 
   // Crea un empleado nuevo y devuelve el registro creado
@@ -150,5 +151,41 @@ export class EmpleadoService {
         },
       });
     });
+  }
+  async updateHabilidades(id: number, habilidadesIds: number[]) {
+    try {
+      // 2. Añade explícitamente el tipo : Prisma.TransactionClient al parámetro tx
+      return await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        
+        // 1. Limpiar las habilidades previas asignadas a este empleado
+        await tx.habilidadEmpleado.deleteMany({
+          where: { empleadoId: id },
+        });
+
+        // 2. Insertar las nuevas habilidades seleccionadas en el Front
+        if (habilidadesIds && habilidadesIds.length > 0) {
+          await tx.habilidadEmpleado.createMany({
+            data: habilidadesIds.map((id) => ({
+              empleadoId: id,
+              habilidadId: id,
+              assignedBy: 'System_User',
+            })),
+          });
+        }
+
+        // 3. Devolver el empleado fresco con sus habilidades mapeadas
+        return await tx.empleado.findUnique({
+          where: { id: id },
+          include: {
+            habilidades: {
+              include: { habilidad: true },
+            },
+          },
+        });
+      });
+    } catch (error) {
+      console.error('Error Crítico de Transacción Prisma 7.8:', error);
+      throw new InternalServerErrorException('No se pudieron actualizar las habilidades en la ficha del empleado.');
+    }
   }
 }

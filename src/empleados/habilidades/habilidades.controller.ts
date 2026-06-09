@@ -1,43 +1,30 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, BadRequestException, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
 import { HabilidadesService } from './habilidades.service';
-import { CreateHabilidadeDto } from './dto/create-habilidade.dto';
-import { UpdateHabilidadeDto } from './dto/update-habilidade.dto';
 
-
-@Controller('empleados/habilidades')
+@Controller('catalogo-habilidades') // 👈 Esto mapea exactamente la URL del Axios de tu Frontend
 export class HabilidadesController {
   constructor(private readonly habilidadesService: HabilidadesService) {}
-    
 
-  //Crear habilidad (valida que no exista duplicado).
-  @Post()
-  create(@Body() createHabilidadeDto: CreateHabilidadeDto) {
-    return this.habilidadesService.create(createHabilidadeDto);
-  }
- 
-  //Listar todas las habilidades (para el dropdown del frontend).
   @Get()
-  findAll() {
-    return this.habilidadesService.findAll();
+  async getAll() {
+    return await this.habilidadesService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.habilidadesService.findOne(+id);
+  @Post()
+  async create(@Body() payload: { nombre: string; descripcion?: string }) {
+    return await this.habilidadesService.create(payload);
   }
 
-  // Editar nombre o descripción de la habilidad en el catálogo.
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateHabilidadeDto: UpdateHabilidadeDto) {
-   // ✨ Pasamos el ID y los datos del Body.
-   return this.habilidadesService.update(+id, updateHabilidadeDto);
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: { nombre: string; descripcion?: string },
+  ) {
+    return await this.habilidadesService.update(id, payload);
   }
 
-  // Eliminar habilidad (GPRCIMPER-88)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    // Convertimos el parámetro 'id' de string a número usando el operador '+'
-    // delegando la lógica de validación (si está asignada a empleados activos) al servicio.
-    return this.habilidadesService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    return await this.habilidadesService.remove(id);
   }
 }
