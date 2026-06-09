@@ -221,8 +221,8 @@ export class CotizacionService {
         data: {
           descripcion: data.descripcion,
           cliente: data.cliente,
-          phone: data.cliente,
-          email: data.phone,
+          phone: data.phone,
+          email: data.email,
           estado: data.estado,
           subTotal: subTotalCotizacion,
           totalIva: totalIvaCotizacion,
