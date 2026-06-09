@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RolesModule } from './roles/roles.module';
 import { UsersModule } from './users/users.module';
 import { HerramientasModule } from './herramientas/herramientas.module';
+import { MaterialesModule } from './materiales/materiales.module';
 import { MovimientosModule } from './movimientos/movimientos.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
 
@@ -24,6 +25,7 @@ import { ProyectosModule } from './proyectos/proyectos.module';
     PermissionsModule,
     RolesModule,
     HerramientasModule,
+    MaterialesModule,
     MovimientosModule,
     ProyectosModule,
   ],
