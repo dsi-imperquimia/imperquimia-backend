@@ -1,5 +1,4 @@
 import { UserRepository } from '@/users/user.repository';
-import { User } from '@gen/prisma/client';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -11,15 +10,38 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async signIn(
-    email: string,
-    pass: string,
-  ): Promise<{
-    access_token: string;
-    user: Pick<User, 'id' | 'email' | 'name' | 'lastName'>;
-  }> {
+  async signIn(email: string, pass: string) {
     const user = await this.userRepo.findFirst({
       where: { email },
+      select: {
+        id: true,
+        name: true,
+        lastName: true,
+        email: true,
+        password: true,
+        roleId: true,
+        permissions: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+        role: {
+          select: {
+            id: true,
+            name: true,
+            permissions: {
+              select: {
+                permission: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -38,10 +60,14 @@ export class AuthService {
         username: user.email,
       }),
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        lastName: user.lastName,
+        ...user,
+        password: undefined,
+        role: {
+          ...user.role,
+          permissions: user?.role?.permissions.map((rp) => rp.permission),
+          permissionsIds: user?.role?.permissions.map((rp) => rp.permission.id),
+        },
+        permissionsIds: user?.permissions.map((p) => p.permissionId) || [],
       },
     };
   }
