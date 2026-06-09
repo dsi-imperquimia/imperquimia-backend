@@ -10,6 +10,8 @@ export async function seedMateriales(prisma: PrismaClient) {
       unidad: 'cubeta',
       costoUnitario: new Decimal(341.59),
       estado: true,
+      codigo: null,
+      fichaTecnica: null,
     },
     {
       id: 2,
@@ -18,6 +20,8 @@ export async function seedMateriales(prisma: PrismaClient) {
       unidad: 'metro',
       costoUnitario: new Decimal(2.5),
       estado: true,
+      codigo: null,
+      fichaTecnica: null,
     },
     {
       id: 3,
@@ -26,6 +30,8 @@ export async function seedMateriales(prisma: PrismaClient) {
       unidad: 'galón',
       costoUnitario: new Decimal(18.75),
       estado: true,
+      codigo: null,
+      fichaTecnica: null,
     },
   ];
 
