@@ -15,6 +15,8 @@ const userSelect = {
   name: true,
   lastName: true,
   email: true,
+  roleId: true,
+  role: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
