@@ -1,7 +1,9 @@
 import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateEmpleadoDto } from './createEmpleado';
 
 // DTO para actualizar campos del empleado. Todos son opcionales.
-export class UpdateEmpleadoDto {
+export class UpdateEmpleadoDto extends PartialType(CreateEmpleadoDto){
   @IsOptional()
   @IsString()
   nombreCompleto?: string;
@@ -22,3 +24,4 @@ export class UpdateEmpleadoDto {
   @IsBoolean()
   activo?: boolean;
 }
+

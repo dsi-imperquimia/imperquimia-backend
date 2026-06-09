@@ -1,4 +1,4 @@
-import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsInt, IsBoolean, IsOptional, IsArray } from 'class-validator';
 
 // DTO para crear un empleado. Comentarios en español y validaciones básicas.
 export class CreateEmpleadoDto {
@@ -22,4 +22,9 @@ export class CreateEmpleadoDto {
   @IsBoolean()
   // Si el empleado está activo (por defecto true)
   activo?: boolean;
+
+  @IsArray()
+  @IsInt({ each: true })
+  @IsOptional()
+  habilidadesIds?: number[]; // IDs desde el frontend
 }

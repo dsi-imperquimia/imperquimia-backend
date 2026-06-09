@@ -64,6 +64,9 @@ model Empleado {
 
   cargo          Cargo?   @relation(fields: [cargoId], references: [id])
 
+  // Relación Muchos a Muchos explícita para control total en auditorías
+  habilidades   HabilidadEmpleado[]
+
   @@map("mnt_empleados")
 }
 
@@ -285,4 +288,33 @@ model Proyecto {
   deletedAt DateTime? @map("deleted_at")
 
   @@map("proy_proyectos")
+}
+
+// ==========================================
+// MODELO: CATALOGO DE HABILIDADES (GPRCIMPER-88)
+// ==========================================
+model Habilidad {
+  id          Int                 @id @default(autoincrement())
+  nombre      String              @unique
+  descripcion String              @default("")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  empleados   HabilidadEmpleado[]
+
+  @@map("mnt_habilidades")
+}
+
+// Tabla intermedia explícita (Muchos a Muchos) (PBI-89 y PBI-90)
+model HabilidadEmpleado {
+  empleadoId  Int      @map("empleado_id")
+  habilidadId Int      @map("habilidad_id")
+  assignedAt  DateTime @default(now()) @map("assigned_at")
+  assignedBy  String   @default("Sistema") @map("assigned_by")
+
+  empleado    Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  habilidad   Habilidad @relation(fields: [habilidadId], references: [id], onDelete: Cascade)
+
+  @@id([empleadoId, habilidadId])
+  @@map("habilidad_empleados")
 }
