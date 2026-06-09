@@ -65,6 +65,17 @@ export async function seedProyectos(prisma: PrismaClient) {
     );
   }
 
+  /**
+   * Fix secuencia
+   */
+  await prisma.$executeRawUnsafe(`
+    SELECT setval(
+      pg_get_serial_sequence('"proy_proyectos"', 'id'),
+      COALESCE(MAX(id), 0) + 1, 
+      false
+    ) FROM "proy_proyectos";
+  `);
+
   console.log(`Seeded ${proyectosCreados.length} proyectos.`);
   console.table(proyectosCreados, ['id', 'nombre', 'ubicacion', 'estado']);
 }
