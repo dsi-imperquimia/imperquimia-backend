@@ -97,7 +97,8 @@ model Cotizacion {
 
   userId      Int      @map("user_id")
   user        User     @relation(fields: [userId], references: [id])
-
+  phone       String
+  email       String   
   subTotal    Decimal  @db.Decimal(10, 2) @default(0) @map("sub_total")
   totalIva    Decimal  @db.Decimal(10, 2) @default(0) @map("total_iva")
   total       Decimal  @db.Decimal(10, 2) @default(0)

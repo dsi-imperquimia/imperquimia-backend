@@ -126,6 +126,8 @@ export class CotizacionService {
       data: {
         descripcion: data.descripcion,
         cliente: data.cliente,
+        phone: data.phone,
+        email: data.email,
         userId,
         subTotal: subTotalCotizacion,
         totalIva: totalIvaCotizacion,
@@ -219,6 +221,8 @@ export class CotizacionService {
         data: {
           descripcion: data.descripcion,
           cliente: data.cliente,
+          phone: data.cliente,
+          email: data.phone,
           estado: data.estado,
           subTotal: subTotalCotizacion,
           totalIva: totalIvaCotizacion,
