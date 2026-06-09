@@ -60,6 +60,8 @@ export class CotizacionService {
     data: CreateCotizacionDto,
     userId: number,
   ): Promise<Cotizacion> {
+    this.validarMaterialesDuplicados(data.detalles);
+
     const cotizacionExistente = await this.prisma.cotizacion.findFirst({
       where: {
         cliente: data.cliente,
@@ -140,6 +142,7 @@ export class CotizacionService {
     id: number,
     data: UpdateCotizacionDto,
   ): Promise<Cotizacion> {
+    this.validarMaterialesDuplicados(data.detalles);
     const cotizacionExistente = await this.prisma.cotizacion.findFirst({
       where: {
         cliente: data.cliente,
@@ -226,5 +229,16 @@ export class CotizacionService {
         },
       });
     });
+  }
+
+  private validarMaterialesDuplicados(detalles: { materialId: number }[]) {
+    const materialesIds = detalles.map((detalle) => detalle.materialId);
+    const materialesUnicos = new Set(materialesIds);
+
+    if (materialesIds.length !== materialesUnicos.size) {
+      throw new BadRequestException(
+        'No se puede agregar el mismo material más de una vez en la cotización',
+      );
+    }
   }
 }
