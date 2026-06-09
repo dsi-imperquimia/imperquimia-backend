@@ -49,12 +49,30 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 20, name: 'PROYECTO_DELETE', description: 'Permiso para eliminar proyectos' },
   ];
 
+  // prettier-ignore
+  const rolePermissions: PermissionType[] = [
+    { id: 21, name: 'ROLE_CREATE', description: 'Permiso para crear roles' },
+    { id: 22, name: 'ROLE_READ', description: 'Permiso para leer roles' },
+    { id: 23, name: 'ROLE_UPDATE', description: 'Permiso para actualizar roles' },
+    { id: 24, name: 'ROLE_DELETE', description: 'Permiso para eliminar roles' },
+  ];
+
+  // prettier-ignore
+  const herramientasPermissions: PermissionType[] = [
+    { id: 25, name: 'HERRAMIENTA_CREATE', description: 'Permiso para crear herramientas' },
+    { id: 26, name: 'HERRAMIENTA_READ', description: 'Permiso para leer herramientas' },
+    { id: 27, name: 'HERRAMIENTA_UPDATE', description: 'Permiso para actualizar herramientas' },
+    { id: 28, name: 'HERRAMIENTA_DELETE', description: 'Permiso para eliminar herramientas' },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
     ...cargoEmpleadosPermissions,
     ...cotizacionesPermissions,
     ...proyectoPermissions,
+    ...rolePermissions,
+    ...herramientasPermissions,
   ];
 
   for (const permission of permissions) {
@@ -84,7 +102,9 @@ export async function seedRoles(prisma: PrismaClient) {
     {
       id: 2,
       name: 'Jefe de proyecto',
-      permissionIds: empleadosPermissions.map((p) => p.id),
+      permissionIds: [...empleadosPermissions, ...herramientasPermissions].map(
+        (p) => p.id,
+      ),
       description: 'Jefe de proyecto',
     },
     { id: 3, name: 'Técnico', permissionIds: [], description: 'Técnico' },

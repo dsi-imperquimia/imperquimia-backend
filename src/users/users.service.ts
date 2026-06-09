@@ -1,4 +1,3 @@
-import { PrismaService } from '@/prisma/prisma.service';
 import { Prisma } from '@gen/prisma/client';
 import {
   ConflictException,
@@ -16,20 +15,41 @@ const userSelect = {
   lastName: true,
   email: true,
   roleId: true,
+  permissions: true,
   role: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
 } satisfies Prisma.UserSelect;
 
-type UserResponse = Prisma.UserGetPayload<{ select: typeof userSelect }>;
+const userSelectRolePermission = {
+  ...userSelect,
+  role: {
+    select: {
+      id: true,
+      name: true,
+      permissions: {
+        select: {
+          permission: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.UserSelect;
+
+type UserResponse = Prisma.UserGetPayload<{
+  select: typeof userSelect | typeof userSelectRolePermission;
+}>;
 
 @Injectable()
 export class UsersService {
-  constructor(
-    private readonly repo: UserRepository,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly repo: UserRepository) {}
 
   private async assertEmailAvailable(email: string, excludeId?: number) {
     const taken = await this.repo.findFirst({
@@ -61,6 +81,7 @@ export class UsersService {
         name: createUserDto.name,
         lastName: createUserDto.lastName,
         email: createUserDto.email,
+        roleId: createUserDto.roleId,
         password,
       },
       select: userSelect,
@@ -76,26 +97,31 @@ export class UsersService {
     });
   }
 
-  async findOne(id: number): Promise<UserResponse> {
+  async findOne(id: number) {
     const user = await this.repo.findUnique({
       where: { id },
-      select: userSelect,
+      select: userSelectRolePermission,
     });
 
     if (!user) {
       throw new NotFoundException(`User #${id} not found`);
     }
 
-    return user;
+    return {
+      ...user,
+      role: {
+        ...user.role,
+        permissions: user?.role?.permissions.map((rp) => rp.permission),
+        permissionsIds: user?.role?.permissions.map((rp) => rp.permission.id),
+      },
+      permissionsIds: user?.permissions.map((p) => p.permissionId) || [],
+    };
   }
 
-  async update(
-    id: number,
-    updateUserDto: UpdateUserDto,
-  ): Promise<UserResponse> {
+  async update(id: number, updateUserDto: UpdateUserDto) {
     await this.findOne(id);
 
-    const data: Prisma.UserUpdateInput = {};
+    const data: Prisma.UserUncheckedUpdateInput = {};
 
     if (updateUserDto.name !== undefined) {
       data.name = updateUserDto.name;
@@ -110,21 +136,44 @@ export class UsersService {
       data.email = updateUserDto.email;
     }
 
+    if (updateUserDto.roleId !== undefined) {
+      data.roleId = updateUserDto.roleId;
+    }
+
     if (updateUserDto.password !== undefined) {
       data.password = await bcrypt.hash(updateUserDto.password, 12);
     }
 
-    return this.repo.update({
+    if (
+      updateUserDto.permissionsIds !== undefined &&
+      updateUserDto.permissionsIds.length > 0
+    ) {
+      await this.repo.userPermission.deleteMany({
+        where: { userId: id },
+      });
+
+      await this.repo.userPermission.createMany({
+        data: updateUserDto.permissionsIds.map((permissionId) => ({
+          userId: id,
+          permissionId,
+        })),
+      });
+    }
+
+    const user = this.repo.update({
       where: { id },
       data,
-      select: userSelect,
+      select: userSelectRolePermission,
     });
+
+    return user;
   }
 
-  async remove(id: number): Promise<UserResponse> {
+  async remove(id: number) {
     const user = await this.findOne(id);
     await this.repo.update({
       where: { id },
+      select: userSelect,
       data: {
         email: `${user.email}|deleted+${user.id}`,
         deletedAt: new Date(),
