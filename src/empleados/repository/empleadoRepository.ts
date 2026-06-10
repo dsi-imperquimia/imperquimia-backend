@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { Empleado } from '@gen/prisma/client';
+import { Injectable } from '@nestjs/common';
 
 // Repositorio para la tabla `empleados`
 // Maneja todas las operaciones CRUD con la BD usando Prisma
@@ -13,9 +13,9 @@ export class EmpleadoRepository {
       include: {
         cargo: true,
         habilidades: {
-          include: { habilidad: true }
-        }
-      }
+          include: { habilidad: true },
+        },
+      },
     });
   }
   // Busca un empleado por id
@@ -25,9 +25,9 @@ export class EmpleadoRepository {
       include: {
         cargo: true,
         habilidades: {
-          include: { habilidad: true }
-        }
-      }
+          include: { habilidad: true },
+        },
+      },
     });
   }
   // Crea un nuevo empleado
