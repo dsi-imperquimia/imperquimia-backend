@@ -1,6 +1,6 @@
 import { PrismaService } from '@/prisma/prisma.service';
-import { Injectable, BadRequestException } from '@nestjs/common';
 import { Cotizacion, Prisma } from '@gen/prisma/client';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
 import { UpdateCotizacionDto } from './dto/update-cotizacion.dto';
 
@@ -126,6 +126,8 @@ export class CotizacionService {
       data: {
         descripcion: data.descripcion,
         cliente: data.cliente,
+        phone: data.phone,
+        email: data.email,
         userId,
         subTotal: subTotalCotizacion,
         totalIva: totalIvaCotizacion,
@@ -219,6 +221,8 @@ export class CotizacionService {
         data: {
           descripcion: data.descripcion,
           cliente: data.cliente,
+          phone: data.phone,
+          email: data.email,
           estado: data.estado,
           subTotal: subTotalCotizacion,
           totalIva: totalIvaCotizacion,
