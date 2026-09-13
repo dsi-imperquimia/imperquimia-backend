@@ -46,6 +46,21 @@ export class CotizacionService {
             email: true,
           },
         },
+        estadoCambiadoPor: {
+          select: {
+            id: true,
+            name: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            estado: true,
+          },
+        },
         detalles: {
           include: {
             material: true,
@@ -223,7 +238,6 @@ export class CotizacionService {
           cliente: data.cliente,
           phone: data.phone,
           email: data.email,
-          estado: data.estado,
           subTotal: subTotalCotizacion,
           totalIva: totalIvaCotizacion,
           total: totalCotizacion,
@@ -244,5 +258,96 @@ export class CotizacionService {
         'No se puede agregar el mismo material más de una vez en la cotización',
       );
     }
+  }
+
+  // Aprobar cotización y crear proyecto asociado
+  async aprobarCotizacion(id: number, userId: number) {
+    const cotizacion = await this.prisma.cotizacion.findUnique({
+      where: { id },
+      include: {
+        proyecto: true,
+      },
+    });
+
+    if (!cotizacion) {
+      throw new BadRequestException('No se encontró la cotización.');
+    }
+
+    if (cotizacion.estado === 'RECHAZADA') {
+      throw new BadRequestException(
+        'No se puede aprobar una cotización rechazada.',
+      );
+    }
+
+    if (cotizacion.estado === 'APROBADA') {
+      throw new BadRequestException('La cotización ya se encuentra aprobada.');
+    }
+
+    if (cotizacion.proyecto) {
+      throw new BadRequestException(
+        'La cotización ya tiene un proyecto asociado.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const cotizacionAprobada = await tx.cotizacion.update({
+        where: {
+          id,
+        },
+        data: {
+          estado: 'APROBADA',
+          estadoCambiadoPorId: userId,
+          estadoCambiadoAt: new Date(),
+        },
+      });
+
+      const proyecto = await tx.proyecto.create({
+        data: {
+          nombre: cotizacion.descripcion,
+          estado: 'ACTIVO',
+          cotizacionId: cotizacion.id,
+        },
+      });
+
+      return {
+        message: 'Cotización aprobada y proyecto creado correctamente.',
+        cotizacion: cotizacionAprobada,
+        proyecto,
+      };
+    });
+  }
+
+  // Rechazar cotización
+  async rechazarCotizacion(id: number, userId: number) {
+    const cotizacion = await this.prisma.cotizacion.findUnique({
+      where: {
+        id,
+      },
+    });
+
+    if (!cotizacion) {
+      throw new BadRequestException('No se encontró la cotización.');
+    }
+
+    if (cotizacion.estado === 'RECHAZADA') {
+      throw new BadRequestException('La cotización ya se encuentra rechazada.');
+    }
+
+    if (cotizacion.estado === 'APROBADA') {
+      throw new BadRequestException(
+        'No se puede rechazar una cotización que ya fue aprobada.',
+      );
+    }
+
+    return this.prisma.cotizacion.update({
+      where: {
+        id,
+      },
+      data: {
+        estado: 'RECHAZADA',
+        estadoCambiadoPorId: userId,
+        estadoCambiadoAt: new Date(),
+      },
+    });
   }
 }
