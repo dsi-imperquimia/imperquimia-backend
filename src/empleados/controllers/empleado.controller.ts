@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { CreateEmpleadoDto } from '../dto/createEmpleado';
 import { UpdateEmpleadoDto } from '../dto/updateEmpleado';
+import { UpdateHabilidadesEmpleadoDto } from '../dto/updateHabilidadesEmpleado';
 import { EmpleadoService } from '../service/empleado.service';
 
 //estos son los endpoint
@@ -51,15 +52,11 @@ export class EmpleadoController {
     return this.empleadoService.remove(id);
   }
 
-  // // GPRCIMPER-90: Guardar habilidades desde el perfil del empleado
-  // @Patch(':id/habilidades')
-  // async updateHabilidades(
-  //   @Param('id', ParseIntPipe) id: number,
-  //   @Body() body: { habilidadesIds: number[] },
-  // ) {
-  //   return await this.empleadoService.updateHabilidades(
-  //     id,
-  //     body.habilidadesIds,
-  //   );
-  // }
+  @Patch(':id/habilidades')
+  updateHabilidades(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateHabilidadesEmpleadoDto,
+  ) {
+    return this.empleadoService.updateHabilidades(id, body.habilidadesIds);
+  }
 }
