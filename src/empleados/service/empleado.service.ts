@@ -10,14 +10,16 @@ export class EmpleadoService {
 
   // Crea un empleado nuevo y devuelve el registro creado
   async create(createEmpleadoDto: CreateEmpleadoDto): Promise<Empleado> {
-    // Aquí podrías añadir validaciones adicionales (p.ej. DUI/NIT únicos)
-    return this.repo.create({
-      nombreCompleto: createEmpleadoDto.nombreCompleto,
-      dui: createEmpleadoDto.dui,
-      nit: createEmpleadoDto.nit,
-      cargoId: createEmpleadoDto.cargoId,
-      activo: createEmpleadoDto.activo ?? true,
-    } as Omit<Empleado, 'id' | 'createdAt' | 'updatedAt' | 'fechaRegistro'>);
+    return this.repo.create(
+      {
+        nombreCompleto: createEmpleadoDto.nombreCompleto,
+        dui: createEmpleadoDto.dui,
+        nit: createEmpleadoDto.nit,
+        cargoId: createEmpleadoDto.cargoId,
+        activo: createEmpleadoDto.activo ?? true,
+      },
+      createEmpleadoDto.habilidadesIds,
+    );
   }
 
   // Lista todos los empleados
@@ -40,7 +42,23 @@ export class EmpleadoService {
     updateEmpleadoDto: UpdateEmpleadoDto,
   ): Promise<Empleado> {
     await this.findOne(id); // aseguramos que existe
-    return this.repo.update(id, updateEmpleadoDto);
+    // Solo enviamos campos editables; cargo y habilidades del GET son relaciones.
+    return this.repo.update(
+      id,
+      {
+        nombreCompleto: updateEmpleadoDto.nombreCompleto,
+        dui: updateEmpleadoDto.dui,
+        nit: updateEmpleadoDto.nit,
+        cargoId: updateEmpleadoDto.cargoId,
+        activo: updateEmpleadoDto.activo,
+      },
+      updateEmpleadoDto.habilidadesIds,
+    );
+  }
+
+  async updateHabilidades(id: number, habilidadesIds: number[]) {
+    await this.findOne(id);
+    return this.repo.update(id, {}, habilidadesIds);
   }
 
   // Elimina un empleado y devuelve el registro eliminado
