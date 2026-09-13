@@ -18,30 +18,30 @@ datasource db {
 // ==========================================
 
 model User {
-  id          Int          @id @default(autoincrement())
-  name        String
-  lastName    String       @map("last_name")
-  email       String       @unique
-  password    String
+  id       Int    @id @default(autoincrement())
+  name     String
+  lastName String @map("last_name")
+  email    String @unique
+  password String
 
-  cotizaciones Cotizacion[] 
+  cotizaciones               Cotizacion[] @relation("CotizacionCreador")
+  cotizacionesEstadoCambiado Cotizacion[] @relation("CotizacionCambioEstado")
 
-  roleId      Int?         @map("role_id")
+  roleId      Int?             @map("role_id")
   permissions UserPermission[]
 
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  deletedAt   DateTime?    @map("deleted_at")
-
-  role        Role?        @relation(fields: [roleId], references: [id])
+  role        Role?                   @relation(fields: [roleId], references: [id])
   // ==========================================
   // RELACIÓN: USER -> EMPLEADO
   // ==========================================
   // empleadoId Int?      @unique @map("id_empleado")
   // empleado   Empleado? @relation(fields: [empleadoId], references: [id])
-  movimientos  MovimientoHerramienta[] 
- 
+  movimientos MovimientoHerramienta[]
+
   @@map("mnt_users")
 }
 
@@ -62,20 +62,20 @@ model Empleado {
   // ==========================================
   // user           User?
 
-  cargo          Cargo?   @relation(fields: [cargoId], references: [id])
+  cargo Cargo? @relation(fields: [cargoId], references: [id])
 
   // Relación Muchos a Muchos explícita para control total en auditorías
-  habilidades   HabilidadEmpleado[]
+  habilidades HabilidadEmpleado[]
 
   @@map("mnt_empleados")
 }
 
 model Cargo {
-  id          Int       @id @default(autoincrement())
-  nombre      String    @unique
-  deletedAt   DateTime? @map("deleted_at")
+  id        Int       @id @default(autoincrement())
+  nombre    String    @unique
+  deletedAt DateTime? @map("deleted_at")
 
-  empleados   Empleado[]
+  empleados Empleado[]
 
   @@map("mnt_cargos")
 }
@@ -85,29 +85,36 @@ model Cargo {
 // ==========================================
 
 enum EstadoCotizacion {
-  ACTIVA
-  DESACTIVADA
+  PENDIENTE
+  APROBADA
+  RECHAZADA
 }
 
-
 model Cotizacion {
-  id          Int      @id @default(autoincrement())
+  id          Int    @id @default(autoincrement())
   descripcion String
   cliente     String
 
-  userId      Int      @map("user_id")
-  user        User     @relation(fields: [userId], references: [id])
-  phone       String
-  email       String   
-  subTotal    Decimal  @db.Decimal(10, 2) @default(0) @map("sub_total")
-  totalIva    Decimal  @db.Decimal(10, 2) @default(0) @map("total_iva")
-  total       Decimal  @db.Decimal(10, 2) @default(0)
-  estado      EstadoCotizacion @default(ACTIVA)
+  userId   Int              @map("user_id")
+  user     User             @relation("CotizacionCreador", fields: [userId], references: [id])
+  phone    String
+  email    String
+  subTotal Decimal          @default(0) @map("sub_total") @db.Decimal(10, 2)
+  totalIva Decimal          @default(0) @map("total_iva") @db.Decimal(10, 2)
+  total    Decimal          @default(0) @db.Decimal(10, 2)
+  estado   EstadoCotizacion @default(PENDIENTE)
 
-  detalles    DetalleCotizacion[]
+  estadoCambiadoPorId Int?      @map("estado_cambiado_por_id")
+  estadoCambiadoPor   User?     @relation("CotizacionCambioEstado", fields: [estadoCambiadoPorId], references: [id])
+  estadoCambiadoAt    DateTime? @map("estado_cambiado_at")
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  detalles DetalleCotizacion[]
+
+  proyecto Proyecto?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@map("cot_cotizaciones")
 }
 
@@ -122,86 +129,85 @@ model DetalleCotizacion {
 
   cantidad      Decimal  @db.Decimal(10, 2)
   unidad        String
-  costoUnitario Decimal  @db.Decimal(10, 2) @map("costo_unitario")
-  subTotal      Decimal  @db.Decimal(10, 2) @map("sub_total")
-  totalIva      Decimal  @db.Decimal(10, 2) @default(0) @map("total_iva")
-  total         Decimal  @db.Decimal(10, 2) @default(0)
+  costoUnitario Decimal  @map("costo_unitario") @db.Decimal(10, 2)
+  subTotal      Decimal  @map("sub_total") @db.Decimal(10, 2)
+  totalIva      Decimal  @default(0) @map("total_iva") @db.Decimal(10, 2)
+  total         Decimal  @default(0) @db.Decimal(10, 2)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("cot_detalle_cotizaciones")
 }
+
 model Permission {
-  id          Int          @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
   description String?
-  
-  users       UserPermission[]
-  roles       RolePermission[]
 
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime?    @updatedAt @map("updated_at")
-  deletedAt   DateTime?    @map("deleted_at")
+  users UserPermission[]
+  roles RolePermission[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@map("mnt_permissions")
 }
 
 model Role {
-  id          Int          @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   name        String
   description String?
 
   users       User[]
   permissions RolePermission[]
 
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime?    @updatedAt @map("updated_at")
-  deletedAt   DateTime?    @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@map("mnt_roles")
 }
 
 model UserPermission {
-  userId       Int      @map("user_id")
-  permissionId Int      @map("permission_id")
+  userId       Int @map("user_id")
+  permissionId Int @map("permission_id")
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission    @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([userId, permissionId])
   @@map("mnt_user_permissions")
 }
 
 model RolePermission {
-  roleId       Int         @map("role_id")
-  permissionId Int         @map("permission_id")
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
 
-  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
   @@map("mnt_role_permissions")
 }
-
 
 // ==========================================
 // MODELO: Materiales
 // ==========================================
 
 model Material {
-  id             Int      @id @default(autoincrement())
-  nombre         String
-  descripcion    String?
-  unidad         String
-  costoUnitario  Decimal  @db.Decimal(10, 2) @map("costo_unitario")
-  estado         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  codigo         String?  @unique
-  fichaTecnica   String?  @map("ficha_tecnica")
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  descripcion   String?
+  unidad        String
+  costoUnitario Decimal  @map("costo_unitario") @db.Decimal(10, 2)
+  estado        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  codigo        String?  @unique
+  fichaTecnica  String?  @map("ficha_tecnica")
 
-  detalles       DetalleCotizacion[]
+  detalles DetalleCotizacion[]
 
   @@map("mnt_materiales")
 }
@@ -228,9 +234,9 @@ enum AreaMovimiento {
 model Herramienta {
   id          Int               @id @default(autoincrement())
   codigoUnico String            @unique @map("codigo_unico")
-  nombre      String            
-  marca       String            
-  tipo        String            
+  nombre      String
+  marca       String
+  tipo        String
   estado      EstadoHerramienta @default(DISPONIBLE)
 
   // Si está en un proyecto, tendrá el ID, permitiendo buscar "todas las del proyecto X".
@@ -239,28 +245,27 @@ model Herramienta {
 
   movimientos MovimientoHerramienta[]
 
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("inv_herramientas")
 }
 
-
 model MovimientoHerramienta {
-  id Int @id @default(autoincrement())
-  herramientaId Int         @map("id_herramienta")
-  herramienta   Herramienta @relation(fields: [herramientaId], references: [id])
-  usuarioId Int  @map("id_usuario")
-  usuario   User @relation(fields: [usuarioId], references: [id])
-  origen  AreaMovimiento
-  destino AreaMovimiento
-  proyectoDestinoId Int?      @map("id_proyecto_destino")
-  proyectoDestino   Proyecto? @relation(fields: [proyectoDestinoId], references: [id])
+  id                Int            @id @default(autoincrement())
+  herramientaId     Int            @map("id_herramienta")
+  herramienta       Herramienta    @relation(fields: [herramientaId], references: [id])
+  usuarioId         Int            @map("id_usuario")
+  usuario           User           @relation(fields: [usuarioId], references: [id])
+  origen            AreaMovimiento
+  destino           AreaMovimiento
+  proyectoDestinoId Int?           @map("id_proyecto_destino")
+  proyectoDestino   Proyecto?      @relation(fields: [proyectoDestinoId], references: [id])
 
   // Guardamos el estado en el que quedó la herramienta después de este movimiento
   estadoHerramienta EstadoHerramienta @map("estado_herramienta")
-  fechaMovimiento DateTime @default(now()) @map("fecha_movimiento")
-  observaciones   String?  @db.Text
+  fechaMovimiento   DateTime          @default(now()) @map("fecha_movimiento")
+  observaciones     String?           @db.Text
 
   @@map("inv_movimientos_herramientas")
 }
@@ -279,12 +284,16 @@ enum EstadoProyecto {
 model Proyecto {
   id        Int            @id @default(autoincrement())
   nombre    String
-  ubicacion String?        
+  ubicacion String?
   estado    EstadoProyecto @default(ACTIVO)
 
+  //Id de la cotizacion por si se crea desde una cotizacion existente pero puede ser null por si se crea sin cotizacion
+  cotizacionId Int?        @unique @map("cotizacion_id")
+  cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
+
   // Relaciones inversas para consultar las herramientas actuales del proyecto y las que han tenido
-  herramientas   Herramienta[] 
-  movimientos    MovimientoHerramienta[]
+  herramientas Herramienta[]
+  movimientos  MovimientoHerramienta[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -297,13 +306,13 @@ model Proyecto {
 // MODELO: CATALOGO DE HABILIDADES (GPRCIMPER-88)
 // ==========================================
 model Habilidad {
-  id          Int                 @id @default(autoincrement())
-  nombre      String              @unique
-  descripcion String              @default("")
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String   @default("")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  empleados   HabilidadEmpleado[]
+  empleados HabilidadEmpleado[]
 
   @@map("mnt_habilidades")
 }
@@ -315,8 +324,8 @@ model HabilidadEmpleado {
   assignedAt  DateTime @default(now()) @map("assigned_at")
   assignedBy  String   @default("Sistema") @map("assigned_by")
 
-  empleado    Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
-  habilidad   Habilidad @relation(fields: [habilidadId], references: [id], onDelete: Cascade)
+  empleado  Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+  habilidad Habilidad @relation(fields: [habilidadId], references: [id], onDelete: Cascade)
 
   @@id([empleadoId, habilidadId])
   @@map("habilidad_empleados")
