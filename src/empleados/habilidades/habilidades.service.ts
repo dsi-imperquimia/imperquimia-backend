@@ -1,5 +1,7 @@
 import { Injectable, ConflictException, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service'; // 👈 Ruta relativa ajustada a tu árbol
+import { CreateHabilidadeDto } from './dto/create-habilidade.dto';
+import { UpdateHabilidadeDto } from './dto/update-habilidade.dto';
 
 @Injectable()
 export class HabilidadesService {
@@ -16,7 +18,7 @@ export class HabilidadesService {
     }
   }
 
-  async create(payload: { nombre: string; descripcion?: string }) {
+  async create(payload: CreateHabilidadeDto) {
     try {
       return await this.prisma.habilidad.create({
         data: payload,
@@ -29,7 +31,7 @@ export class HabilidadesService {
     }
   }
 
-  async update(id: number, payload: { nombre: string; descripcion?: string }) {
+  async update(id: number, payload: UpdateHabilidadeDto) {
     try {
       return await this.prisma.habilidad.update({
         where: { id },
