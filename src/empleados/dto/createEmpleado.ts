@@ -1,7 +1,14 @@
-import { IsString, IsInt, IsBoolean, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { UpdateHabilidadesEmpleadoDto } from './updateHabilidadesEmpleado';
 
 // DTO para crear un empleado. Comentarios en español y validaciones básicas.
-export class CreateEmpleadoDto {
+export class CreateEmpleadoDto extends PartialType(
+  UpdateHabilidadesEmpleadoDto,
+  {
+    skipNullProperties: false,
+  },
+) {
   @IsString()
   // Nombre completo del empleado
   nombreCompleto!: string;
@@ -22,9 +29,4 @@ export class CreateEmpleadoDto {
   @IsBoolean()
   // Si el empleado está activo (por defecto true)
   activo?: boolean;
-
-  @IsArray()
-  @IsInt({ each: true })
-  @IsOptional()
-  habilidadesIds?: number[]; // IDs desde el frontend
 }

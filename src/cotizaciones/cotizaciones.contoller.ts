@@ -8,6 +8,8 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  Patch,
+  Delete,
 } from '@nestjs/common';
 import { CotizacionService } from './cotizaciones.service';
 import { CreateCotizacionDto } from './dto/create-cotizacion.dto';
@@ -69,5 +71,23 @@ export class CotizacionController {
     }
 
     return this.cotizacionService.updateCotizacion(Number(id), data);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/aprobar')
+  async aprobarCotizacion(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.cotizacionService.aprobarCotizacion(Number(id), req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  async rechazarCotizacion(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.cotizacionService.rechazarCotizacion(Number(id), req.user.sub);
   }
 }
