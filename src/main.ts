@@ -4,6 +4,7 @@ import { env } from '@/config/env.config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 
@@ -14,6 +15,17 @@ async function bootstrap() {
    * para aprovechar las características específicas de Express.
    */
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  /** Swagger */
+  const config = new DocumentBuilder()
+    .setTitle('API Documentation')
+    .setDescription('API documentation for the application')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addSecurityRequirements('bearer')
+    .build();
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, documentFactory);
 
   /**
    * Coors
