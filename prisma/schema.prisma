@@ -34,13 +34,14 @@ model User {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  role        Role?                   @relation(fields: [roleId], references: [id])
+  role             Role?                   @relation(fields: [roleId], references: [id])
   // ==========================================
   // RELACIÓN: USER -> EMPLEADO
   // ==========================================
   // empleadoId Int?      @unique @map("id_empleado")
   // empleado   Empleado? @relation(fields: [empleadoId], references: [id])
-  movimientos MovimientoHerramienta[]
+  movimientos      MovimientoHerramienta[]
+  proyectosCreados Proyecto[]              @relation("ProyectoCreador")
 
   @@map("mnt_users")
 }
@@ -66,6 +67,7 @@ model Empleado {
 
   // Relación Muchos a Muchos explícita para control total en auditorías
   habilidades HabilidadEmpleado[]
+  proyectos   ProyectoEmpleado[]
 
   @@map("mnt_empleados")
 }
@@ -209,6 +211,8 @@ model Material {
 
   detalles DetalleCotizacion[]
 
+  detallesProyecto DetalleProyecto[]
+
   @@map("mnt_materiales")
 }
 
@@ -287,6 +291,23 @@ model Proyecto {
   ubicacion String?
   estado    EstadoProyecto @default(ACTIVO)
 
+  descripcion String?
+  // Nullable para conservar proyectos anteriores. Exigir fechas y cliente en nuevas creaciones desde la API.
+  fechaInicio DateTime? @map("fecha_inicio") @db.Date
+  fechaFin    DateTime? @map("fecha_fin") @db.Date
+  cliente     String?
+  // La API debe exigir al menos un contacto no vacio: phone o email.
+  phone       String?
+  email       String?
+  subTotal    Decimal   @default(0) @map("sub_total") @db.Decimal(10, 2)
+  totalIva    Decimal   @default(0) @map("total_iva") @db.Decimal(10, 2)
+  total       Decimal   @default(0) @db.Decimal(10, 2)
+
+  creadoPorId Int?               @map("creado_por_id")
+  creadoPor   User?              @relation("ProyectoCreador", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  detalles    DetalleProyecto[]
+  empleados   ProyectoEmpleado[]
+
   //Id de la cotizacion por si se crea desde una cotizacion existente pero puede ser null por si se crea sin cotizacion
   cotizacionId Int?        @unique @map("cotizacion_id")
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
@@ -300,6 +321,43 @@ model Proyecto {
   deletedAt DateTime? @map("deleted_at")
 
   @@map("proy_proyectos")
+}
+
+// Materiales presupuestados del proyecto, con cantidades y precios propios.
+model DetalleProyecto {
+  id            Int      @id @default(autoincrement())
+  proyectoId    Int      @map("proyecto_id")
+  proyecto      Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  materialId    Int      @map("material_id")
+  material      Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  cantidad      Decimal  @db.Decimal(10, 2)
+  unidad        String
+  costoUnitario Decimal  @map("costo_unitario") @db.Decimal(10, 2)
+  subTotal      Decimal  @map("sub_total") @db.Decimal(10, 2)
+  totalIva      Decimal  @default(0) @map("total_iva") @db.Decimal(10, 2)
+  total         Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([proyectoId, materialId])
+  @@map("proy_detalle_proyectos")
+}
+
+model ProyectoEmpleado {
+  // Indice unico parcial en SQL: empleado_id WHERE fecha_retiro IS NULL.
+  // Mantener la migracion 20260914030000_empleado_un_proyecto_activo.
+  proyectoId      Int       @map("proyecto_id")
+  empleadoId      Int       @map("empleado_id")
+  proyecto        Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  empleado        Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+  fechaAsignacion DateTime  @default(now()) @map("fecha_asignacion")
+  fechaRetiro     DateTime? @map("fecha_retiro")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@id([proyectoId, empleadoId])
+  @@index([empleadoId])
+  @@map("proy_proyecto_empleados")
 }
 
 // ==========================================
