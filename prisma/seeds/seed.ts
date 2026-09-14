@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { env } from '@/config/env.config';
 import { PrismaClient } from '@gen/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { fixSequences } from './fix-sequences';
 import { seedMateriales } from './materiales';
 import { seedProyectos } from './proyectos';
 import { seedRoles } from './roolesSeed';
@@ -17,6 +18,7 @@ async function main() {
   await seedUsers(prisma);
   await seedMateriales(prisma);
   await seedProyectos(prisma);
+  await fixSequences(prisma);
 }
 
 main()
