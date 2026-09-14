@@ -2,16 +2,43 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@gen/prisma/client';
 import { ProyectoRepository } from '../repository/proyectoRepository';
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
+import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
 
 @Injectable()
 export class ProyectoService {
   constructor(private readonly repo: ProyectoRepository) {}
 
-  create(dto: CreateProyectoDto) {
+  private datosProyecto(dto: CreateProyectoDto) {
+    if (!dto.nombre?.trim() || !dto.cliente?.trim()) throw new BadRequestException('Nombre y cliente son obligatorios.');
+    if (!dto.phone?.trim() && !dto.email?.trim()) throw new BadRequestException('Ingresa al menos un teléfono o correo.');
+    if (!dto.fechaInicio || !dto.fechaFin) throw new BadRequestException('Las fechas son obligatorias.');
+    const fechaInicio = new Date(dto.fechaInicio);
+    const fechaFin = new Date(dto.fechaFin);
+    if (!Number.isFinite(fechaInicio.getTime()) || !Number.isFinite(fechaFin.getTime()) || fechaFin < fechaInicio) throw new BadRequestException('Las fechas son obligatorias y el fin no puede ser anterior al inicio.');
+    return { nombre: dto.nombre.trim(), cliente: dto.cliente.trim(), descripcion: dto.descripcion?.trim() || null, ubicacion: dto.ubicacion?.trim() || null, phone: dto.phone?.trim() || null, email: dto.email?.trim() || null, fechaInicio, fechaFin };
+  }
+
+  create(dto: CreateProyectoDto, userId: number) {
     return this.repo.create({
-      nombre: dto.nombre,
-      ubicacion: dto.ubicacion,
+      ...this.datosProyecto(dto),
+      creadoPorId: userId,
+      cotizacionId: null,
     });
+  }
+
+  async update(id: number, dto: UpdateProyectoDto) {
+    const actual = await this.findOne(id);
+    const datos = this.datosProyecto({
+      nombre: dto.nombre ?? actual.nombre,
+      cliente: dto.cliente === undefined ? actual.cliente ?? '' : dto.cliente,
+      descripcion: dto.descripcion === undefined ? actual.descripcion ?? '' : dto.descripcion,
+      ubicacion: dto.ubicacion === undefined ? actual.ubicacion ?? '' : dto.ubicacion,
+      phone: dto.phone === undefined ? actual.phone ?? '' : dto.phone,
+      email: dto.email === undefined ? actual.email ?? '' : dto.email,
+      fechaInicio: dto.fechaInicio === undefined ? actual.fechaInicio?.toISOString().slice(0, 10) ?? '' : dto.fechaInicio,
+      fechaFin: dto.fechaFin === undefined ? actual.fechaFin?.toISOString().slice(0, 10) ?? '' : dto.fechaFin,
+    });
+    return this.repo.update(id, datos);
   }
 
   findAll() {
