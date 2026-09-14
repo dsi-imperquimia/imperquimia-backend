@@ -159,6 +159,26 @@ export class CotizacionService {
     id: number,
     data: UpdateCotizacionDto,
   ): Promise<Cotizacion> {
+    const cotizacionActual = await this.prisma.cotizacion.findUnique({
+      where: { id },
+    });
+
+    if (!cotizacionActual) {
+      throw new BadRequestException('No se encontró la cotización.');
+    }
+
+    if (cotizacionActual.estado === 'APROBADA') {
+      throw new BadRequestException(
+        'No se puede modificar una cotización aprobada.',
+      );
+    }
+
+    if (cotizacionActual.estado === 'RECHAZADA') {
+      throw new BadRequestException(
+        'No se puede modificar una cotización rechazada.',
+      );
+    }
+
     this.validarMaterialesDuplicados(data.detalles);
     const cotizacionExistente = await this.prisma.cotizacion.findFirst({
       where: {
@@ -266,6 +286,7 @@ export class CotizacionService {
       where: { id },
       include: {
         proyecto: true,
+        detalles: true,
       },
     });
 
@@ -301,11 +322,46 @@ export class CotizacionService {
         },
       });
 
+      // crear proyecto con los datos de la cotizacion
       const proyecto = await tx.proyecto.create({
         data: {
           nombre: cotizacion.descripcion,
+          descripcion: cotizacion.descripcion,
+
+          cliente: cotizacion.cliente,
+          phone: cotizacion.phone,
+          email: cotizacion.email,
+
+          subTotal: cotizacion.subTotal,
+          totalIva: cotizacion.totalIva,
+          total: cotizacion.total,
+
           estado: 'ACTIVO',
+
+          creadoPorId: userId,
+
           cotizacionId: cotizacion.id,
+
+          // mapear los materiales de la cotizacion
+          detalles: {
+            create: cotizacion.detalles.map((detalle) => ({
+              materialId: detalle.materialId,
+              cantidad: detalle.cantidad,
+              unidad: detalle.unidad,
+              costoUnitario: detalle.costoUnitario,
+              subTotal: detalle.subTotal,
+              totalIva: detalle.totalIva,
+              total: detalle.total,
+            })),
+          },
+        },
+
+        include: {
+          detalles: {
+            include: {
+              material: true,
+            },
+          },
         },
       });
 
