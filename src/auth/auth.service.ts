@@ -1,5 +1,10 @@
 import { UserRepository } from '@/users/user.repository';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { UsersService } from '@/users/users.service';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
@@ -8,7 +13,19 @@ export class AuthService {
   constructor(
     private userRepo: UserRepository,
     private jwtService: JwtService,
+    private usersService: UsersService,
   ) {}
+
+  async me(userId: number) {
+    try {
+      return await this.usersService.findOne(userId);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new UnauthorizedException();
+      }
+      throw error;
+    }
+  }
 
   async signIn(email: string, pass: string) {
     const user = await this.userRepo.findFirst({
