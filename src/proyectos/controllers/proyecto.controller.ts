@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Patch,
 } from '@nestjs/common';
 import { ProyectoService } from '../service/proyecto.service';
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
@@ -21,6 +22,16 @@ export class ProyectoController {
   }
 
   // GET /proyectos
+  @Post(':id/empleados/:empleadoId')
+  asignarEmpleado(@Param('id', ParseIntPipe) id: number, @Param('empleadoId', ParseIntPipe) empleadoId: number) {
+    return this.proyectoService.asignarEmpleado(id, empleadoId);
+  }
+
+  @Patch(':id/empleados/:empleadoId/retirar')
+  retirarEmpleado(@Param('id', ParseIntPipe) id: number, @Param('empleadoId', ParseIntPipe) empleadoId: number) {
+    return this.proyectoService.retirarEmpleado(id, empleadoId);
+  }
+
   @Get()
   findAll() {
     return this.proyectoService.findAll();
