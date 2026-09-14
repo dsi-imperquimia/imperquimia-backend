@@ -30,6 +30,7 @@
     "prisma:reset": "prisma migrate reset --force",
     "prisma:status": "prisma migrate status",
     "prisma:seed": "prisma db seed",
+    "prisma:fix-sequences": "tsx prisma/scripts/fix-sequences.ts",
     "postinstall": "[ -d prisma/generated/prisma ] || prisma generate"
   },
   "dependencies": {
