@@ -1,15 +1,17 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsInt, IsPositive, IsString, IsOptional } from 'class-validator';
 
 export class UpdateHerramientaDto {
   @IsString()
   @IsOptional()
   nombre?: string;
 
-  @IsString()
+  @IsInt()
+  @IsPositive()
   @IsOptional()
-  marca?: string;
+  marcaId?: number;
 
-  @IsString()
+  @IsInt()
+  @IsPositive()
   @IsOptional()
-  tipo?: string;
+  tipoId?: number;
 }
