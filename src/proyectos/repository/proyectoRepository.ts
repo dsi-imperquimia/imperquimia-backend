@@ -32,6 +32,10 @@ export class ProyectoRepository {
     return this.prisma.proyecto.create({ data });
   }
 
+  update(id: number, data: Prisma.ProyectoUpdateInput) {
+    return this.prisma.proyecto.update({ where: { id, deletedAt: null }, data });
+  }
+
   empleadoDisponible(empleadoId: number) {
     return this.prisma.empleado.findFirst({ where: { id: empleadoId, activo: true, deletedAt: null } });
   }

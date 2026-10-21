@@ -7,9 +7,11 @@ import {
   ParseIntPipe,
   Post,
   Patch,
+  Req,
 } from '@nestjs/common';
 import { ProyectoService } from '../service/proyecto.service';
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
+import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
 
 @Controller('proyectos')
 export class ProyectoController {
@@ -17,8 +19,13 @@ export class ProyectoController {
 
   // POST /proyectos
   @Post()
-  create(@Body() dto: CreateProyectoDto) {
-    return this.proyectoService.create(dto);
+  create(@Body() dto: CreateProyectoDto, @Req() req: { user: { sub: number } }) {
+    return this.proyectoService.create(dto, req.user.sub);
+  }
+
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProyectoDto) {
+    return this.proyectoService.update(id, dto);
   }
 
   // GET /proyectos
