@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -50,9 +49,8 @@ export class ProyectoController {
     return this.proyectoService.findOne(id);
   }
 
-  // DELETE /proyectos/:id  (soft delete, falla si tiene herramientas)
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.proyectoService.remove(id);
+  @Patch(':id/cancelar')
+  cancelar(@Param('id', ParseIntPipe) id: number) {
+    return this.proyectoService.cancelar(id);
   }
 }

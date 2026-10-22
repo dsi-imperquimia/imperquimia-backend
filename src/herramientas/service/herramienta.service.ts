@@ -9,6 +9,9 @@ export class HerramientaService {
   constructor(private readonly repo: HerramientaRepository) {}
 
   async create(dto: CreateHerramientaDto) {
+    if (dto.proyectoId != null && !(await this.repo.findProyectoAsignable(dto.proyectoId))) {
+      throw new BadRequestException('El proyecto no existe o está cancelado.');
+    }
     const codigoUnico = await this.generarCodigoUnico();
 
     return this.repo.create({

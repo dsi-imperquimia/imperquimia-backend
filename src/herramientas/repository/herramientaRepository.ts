@@ -35,6 +35,13 @@ export class HerramientaRepository {
     return this.prisma.herramienta.findUnique({ where: { codigoUnico } });
   }
 
+  findProyectoAsignable(id: number) {
+    return this.prisma.proyecto.findFirst({
+      where: { id, deletedAt: null, estado: { not: 'CANCELADO' } },
+      select: { id: true },
+    });
+  }
+
   create(data: Prisma.HerramientaUncheckedCreateInput) {
     return this.prisma.herramienta.create({ data });
   }
