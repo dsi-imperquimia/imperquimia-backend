@@ -236,12 +236,15 @@ enum AreaMovimiento {
 }
 
 model Herramienta {
-  id          Int               @id @default(autoincrement())
-  codigoUnico String            @unique @map("codigo_unico")
-  nombre      String
-  marca       String
-  tipo        String
-  estado      EstadoHerramienta @default(DISPONIBLE)
+  id            Int               @id @default(autoincrement())
+  codigoUnico   String            @unique @map("codigo_unico")
+  nombre        String
+  marca         String
+  marcaId       Int               @map("marca_id")
+  marcaCatalogo MarcaHerramienta  @relation(fields: [marcaId], references: [id], onDelete: Restrict)
+  tipoId        Int               @map("id_tipo")
+  tipo          TipoHerramienta   @relation(fields: [tipoId], references: [id])
+  estado        EstadoHerramienta @default(DISPONIBLE)
 
   // Si está en un proyecto, tendrá el ID, permitiendo buscar "todas las del proyecto X".
   proyectoId Int?      @map("id_proyecto")
@@ -252,7 +255,30 @@ model Herramienta {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([tipoId])
+  @@index([marcaId])
   @@map("inv_herramientas")
+}
+
+model MarcaHerramienta {
+  id           Int           @id @default(autoincrement())
+  nombre       String
+  clave        String        @unique
+  activo       Boolean       @default(true)
+  herramientas Herramienta[]
+
+  @@map("mnt_marcas_herramientas")
+}
+
+model TipoHerramienta {
+  id           Int           @id @default(autoincrement())
+  nombre       String        @unique
+  activo       Boolean       @default(true)
+  herramientas Herramienta[]
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("inv_tipos_herramienta")
 }
 
 model MovimientoHerramienta {

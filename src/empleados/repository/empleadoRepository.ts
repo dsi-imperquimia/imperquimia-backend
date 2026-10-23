@@ -30,6 +30,15 @@ export class EmpleadoRepository {
       include: empleadoInclude,
     });
   }
+  // Consulta sin el filtro de borrado lógico: un empleado eliminado todavía
+  // ocupa su DUI y NIT en los índices únicos de la base de datos.
+  findDocumentConflicts(dui: string, nit: string) {
+    return this.prisma.empleado.findMany({
+      where: { OR: [{ dui }, { nit }] },
+      select: { dui: true, nit: true },
+      take: 2,
+    });
+  }
   // Crea un nuevo empleado
   create(data: DatosEmpleado, habilidadesIds: number[] = []) {
     return this.prisma.models.$transaction(async (tx) => {

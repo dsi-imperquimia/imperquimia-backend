@@ -53,7 +53,9 @@ db('Proyectos: integracion PostgreSQL (rollback)', () => {
       expect((await service.findOne(p.id)).estado).toBe('CANCELADO');
       expect((await service.findAll()).some(x=>x.id===p.id)).toBe(true);
       await expect(service.update(p.id,{nombre:'No permitido'})).rejects.toMatchObject({status:409});
-      await tx.herramienta.create({data:{codigoUnico:suffix,nombre:'Herramienta prueba',marca:'Prueba',tipo:'Manual',proyectoId:segundo.id}});
+      const marcaHerramienta = await tx.marcaHerramienta.create({data:{nombre:`Marca ${suffix}`,clave:suffix}});
+      const tipoHerramienta = await tx.tipoHerramienta.create({data:{nombre:`Tipo ${suffix}`}});
+      await tx.herramienta.create({data:{codigoUnico:suffix,nombre:'Herramienta prueba',marca:marcaHerramienta.nombre,marcaId:marcaHerramienta.id,tipoId:tipoHerramienta.id,proyectoId:segundo.id}});
       await service.retirarEmpleado(segundo.id,empleado.id);
       await expect(service.cancelar(segundo.id)).rejects.toMatchObject({status:400});
       const cot = await tx.cotizacion.create({data:{descripcion:'Cotizacion de prueba',cliente:'Cliente',phone:'70000000',email:'test@example.com',userId:user.id,subTotal:20,totalIva:2.6,total:22.6,detalles:{create:{materialId:material.id,cantidad:2,unidad:'unidad',costoUnitario:10,subTotal:20,totalIva:2.6,total:22.6}}}});

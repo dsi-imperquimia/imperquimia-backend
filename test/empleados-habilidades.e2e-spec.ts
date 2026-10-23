@@ -31,6 +31,7 @@ describeDatabase('Habilidades de empleados: persistencia en PostgreSQL', () => {
           // Todas las operaciones del repositorio participan de esta transacción
           // externa, que siempre termina en rollback (incluso si falla una aserción).
           const fixtureClient = {
+            empleado: tx.empleado,
             models: {
               empleado: tx.empleado,
               $transaction: async <T>(
