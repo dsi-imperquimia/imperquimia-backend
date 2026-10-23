@@ -46,7 +46,7 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 17, name: 'PROYECTO_CREATE', description: 'Permiso para crear proyectos' },
     { id: 18, name: 'PROYECTO_READ', description: 'Permiso para leer proyectos' },
     { id: 19, name: 'PROYECTO_UPDATE', description: 'Permiso para actualizar proyectos' },
-    { id: 20, name: 'PROYECTO_DELETE', description: 'Permiso para eliminar proyectos' },
+    { id: 20, name: 'PROYECTO_DELETE', description: 'Permiso para cancelar proyectos' },
   ];
 
   // prettier-ignore

@@ -309,6 +309,7 @@ enum EstadoProyecto {
   FINALIZADO
   PAGADO
   GARANTIA
+  CANCELADO
 }
 
 model Proyecto {

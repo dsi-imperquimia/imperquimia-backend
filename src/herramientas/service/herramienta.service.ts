@@ -19,6 +19,9 @@ export class HerramientaService {
   ) {}
 
   async create(dto: CreateHerramientaDto) {
+    if (dto.proyectoId != null && !(await this.repo.findProyectoAsignable(dto.proyectoId))) {
+      throw new BadRequestException('El proyecto no existe o está cancelado.');
+    }
     await this.tipos.ensureSelectable(dto.tipoId);
     const marca = await this.marcas.ensureSelectable(dto.marcaId);
     const codigoUnico = await this.generarCodigoUnico();

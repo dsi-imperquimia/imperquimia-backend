@@ -28,6 +28,13 @@ export class MovimientoRepository {
     });
   }
 
+  findProyectoAsignable(id: number) {
+    return this.prisma.proyecto.findFirst({
+      where: { id, deletedAt: null, estado: { not: 'CANCELADO' } },
+      select: { id: true },
+    });
+  }
+
   async createWithTransaction(data: {
     herramientaId: number;
     usuarioId: number;

@@ -17,7 +17,9 @@ export class ProyectoRepository {
     return this.prisma.proyecto.findFirst({
       where: { id, deletedAt: null },
       include: {
-        herramientas: true,
+        herramientas: {
+          select: { id: true, nombre: true, codigoUnico: true, estado: true },
+        },
         detalles: { include: { material: true }, orderBy: { id: 'asc' } },
         empleados: {
           include: { empleado: { select: { id: true, nombreCompleto: true, activo: true, cargo: { select: { nombre: true } } } } },
@@ -26,6 +28,10 @@ export class ProyectoRepository {
         creadoPor: { select: { id: true, name: true, lastName: true } },
       },
     });
+  }
+
+  findMaterials(ids: number[]) {
+    return this.prisma.material.findMany({ where: { id: { in: ids } } });
   }
 
   create(data: Prisma.ProyectoUncheckedCreateInput) {
@@ -59,10 +65,10 @@ export class ProyectoRepository {
     });
   }
 
-  softDelete(id: number) {
+  cancelar(id: number) {
     return this.prisma.proyecto.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+      where: { id, deletedAt: null },
+      data: { estado: 'CANCELADO' },
     });
   }
 }
