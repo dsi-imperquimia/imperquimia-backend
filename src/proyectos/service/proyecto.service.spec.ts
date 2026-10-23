@@ -81,6 +81,31 @@ describe('ProyectoService: presupuesto de materiales', () => {
     }, 7)).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rechaza importes que no caben en los totales de la base de datos', async () => {
+    const { repo, service } = setup();
+    repo.findMaterials.mockResolvedValueOnce([
+      {
+        id: 1,
+        estado: true,
+        unidad: 'bolsa',
+        costoUnitario: new Prisma.Decimal('99999999.99'),
+      },
+    ]);
+    await expect(
+      service.create({ ...base, detalles: [{ materialId: 1, cantidad: 2 }] }, 7),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.create({
+        ...base,
+        detalles: [
+          { materialId: 1, cantidad: 5500000 },
+          { materialId: 2, cantidad: 11000000 },
+        ],
+      }, 7),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
   it('conserva el precio presupuestado al editar y permite quitar todos', async () => {
     const { repo, service } = setup();
     repo.findUnique.mockResolvedValue({

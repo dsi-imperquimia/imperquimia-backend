@@ -12,6 +12,8 @@ import {
 } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
 
+const MAX_IMPORTE = new Prisma.Decimal('99999999.99');
+
 @Injectable()
 export class ProyectoService {
   constructor(private readonly repo: ProyectoRepository) {}
@@ -98,6 +100,16 @@ export class ProyectoService {
       const costoUnitario = anterior?.costoUnitario ?? material.costoUnitario;
       const subTotal = cantidad.mul(costoUnitario).toDecimalPlaces(2);
       const totalIva = subTotal.mul('0.13').toDecimalPlaces(2);
+      const total = subTotal.add(totalIva);
+      if (
+        subTotal.greaterThan(MAX_IMPORTE) ||
+        totalIva.greaterThan(MAX_IMPORTE) ||
+        total.greaterThan(MAX_IMPORTE)
+      ) {
+        throw new BadRequestException(
+          'El importe del material supera el máximo permitido.',
+        );
+      }
       return {
         materialId: detalle.materialId,
         cantidad,
@@ -105,7 +117,7 @@ export class ProyectoService {
         costoUnitario,
         subTotal,
         totalIva,
-        total: subTotal.add(totalIva),
+        total,
       };
     });
     const sumar = (campo: 'subTotal' | 'totalIva' | 'total') =>
@@ -113,10 +125,22 @@ export class ProyectoService {
         (total, detalle) => total.add(detalle[campo]),
         new Prisma.Decimal(0),
       );
+    const subTotal = sumar('subTotal');
+    const totalIva = sumar('totalIva');
+    const total = sumar('total');
+    if (
+      subTotal.greaterThan(MAX_IMPORTE) ||
+      totalIva.greaterThan(MAX_IMPORTE) ||
+      total.greaterThan(MAX_IMPORTE)
+    ) {
+      throw new BadRequestException(
+        'El presupuesto supera el máximo permitido.',
+      );
+    }
     return {
-      subTotal: sumar('subTotal'),
-      totalIva: sumar('totalIva'),
-      total: sumar('total'),
+      subTotal,
+      totalIva,
+      total,
       detalles: { create: calculados },
     };
   }
