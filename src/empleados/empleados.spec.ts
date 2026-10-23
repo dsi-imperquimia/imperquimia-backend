@@ -5,6 +5,7 @@ import { validationExceptionFactory } from '@/common/pipes/validation-exception.
 import { EmpleadoController } from './controllers/empleado.controller';
 import { EmpleadoService } from './service/empleado.service';
 import { EmpleadoRepository } from './repository/empleadoRepository';
+import { Prisma } from '@gen/prisma/client';
 
 describe('Empleados: contrato HTTP de habilidades', () => {
   let app: INestApplication;
@@ -19,6 +20,7 @@ describe('Empleados: contrato HTTP de habilidades', () => {
   };
   const repo = {
     findUnique: jest.fn(),
+    findDocumentConflicts: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   };
@@ -41,6 +43,7 @@ describe('Empleados: contrato HTTP de habilidades', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     repo.findUnique.mockResolvedValue(empleado);
+    repo.findDocumentConflicts.mockResolvedValue([]);
     repo.create.mockResolvedValue(empleado);
     repo.update.mockResolvedValue(empleado);
   });
@@ -133,6 +136,52 @@ describe('Empleados: contrato HTTP de habilidades', () => {
       [7],
     );
     expect(repo.create.mock.calls[0][0]).not.toHaveProperty('habilidades');
+  });
+
+  it.each(['dui', 'nit'] as const)(
+    'consulta y responde 409 en el campo %s si el documento ya existe',
+    async (field) => {
+      repo.findDocumentConflicts.mockResolvedValueOnce([
+        {
+          dui: field === 'dui' ? empleado.dui : 'otro-dui',
+          nit: field === 'nit' ? empleado.nit : 'otro-nit',
+        },
+      ]);
+
+      const response = await request(app.getHttpServer())
+        .post('/empleados')
+        .send(empleado)
+        .expect(409);
+
+      expect(response.body.message[field]).toEqual([
+        `El ${field.toUpperCase()} ya está registrado.`,
+      ]);
+      expect(repo.findDocumentConflicts).toHaveBeenCalledWith(
+        empleado.dui,
+        empleado.nit,
+      );
+      expect(repo.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('vuelve a consultar si aparece un duplicado entre la validación y el guardado', async () => {
+    repo.findDocumentConflicts
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ dui: empleado.dui, nit: 'otro-nit' }]);
+    repo.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '7.10.0',
+      }),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/empleados')
+      .send(empleado)
+      .expect(409);
+
+    expect(response.body.message.dui).toEqual(['El DUI ya está registrado.']);
+    expect(repo.findDocumentConflicts).toHaveBeenCalledTimes(2);
   });
 
   it.each(['post', 'patch'] as const)(
