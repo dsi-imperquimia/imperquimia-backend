@@ -3,12 +3,15 @@ import {
   IsArray,
   IsEmail,
   IsNotEmpty,
+  IsInt,
   IsNumber,
   IsString,
+  Max,
   Min,
   MinLength,
   ValidateNested,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { ArrayMinSize } from 'class-validator';
 
@@ -24,21 +27,19 @@ class CreateDetalleCotizacionDto {
   })
   materialId: number;
 
-  @IsNumber(
-    {},
-    {
-      message: 'La cantidad debe ser un número',
-    },
-  )
-  @Min(0.01, {
-    message: 'La cantidad debe ser mayor a 0',
+  @IsInt({ message: 'La cantidad debe ser un número entero' })
+  @Min(1, {
+    message: 'La cantidad debe ser al menos 1',
+  })
+  @Max(1000, {
+    message: 'La cantidad no puede superar 1000.',
   })
   cantidad: number;
 }
 
 export class CreateCotizacionDto {
   @IsNotEmpty({
-    message: 'La descripción debe de ser obligatorio',
+    message: 'La descripción es obligatoria',
   })
   @IsString({
     message: 'La descripción debe ser una cadena de texto',
@@ -60,9 +61,6 @@ export class CreateCotizacionDto {
   @MinLength(3, {
     message: 'El nombre del cliente debe tener al menos 3 caracteres',
   })
-  @MinLength(3, {
-    message: 'El nombre del cliente debe tener al menos 3 caracteres',
-  })
   @MaxLength(100, {
     message: 'El nombre del cliente no puede superar los 100 caracteres',
   })
@@ -70,7 +68,9 @@ export class CreateCotizacionDto {
 
   @IsString({ message: 'El teléfono debe ser una cadena de texto' })
   @IsNotEmpty({ message: 'El teléfono es obligatorio' })
-  @MaxLength(8, { message: 'El teléfono no puede superar los 8 caracteres' })
+  @Matches(/^\d{8}$/, {
+    message: 'El teléfono debe tener exactamente 8 dígitos',
+  })
   phone: string;
 
   @IsEmail({}, { message: 'Debe ingresar un correo válido con @ y dominio' })
