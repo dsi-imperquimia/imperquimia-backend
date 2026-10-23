@@ -9,7 +9,7 @@ export class HerramientaRepository {
   findMany(where?: Prisma.HerramientaWhereInput) {
     return this.prisma.herramienta.findMany({
       where,
-      include: { proyecto: true },
+      include: { proyecto: true, tipo: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -19,6 +19,7 @@ export class HerramientaRepository {
       where: { id },
       include: {
         proyecto: true,
+        tipo: true,
         movimientos: {
           orderBy: { fechaMovimiento: 'desc' },
           take: 10,
@@ -36,10 +37,14 @@ export class HerramientaRepository {
   }
 
   create(data: Prisma.HerramientaUncheckedCreateInput) {
-    return this.prisma.herramienta.create({ data });
+    return this.prisma.herramienta.create({ data, include: { tipo: true } });
   }
 
   update(id: number, data: Prisma.HerramientaUncheckedUpdateInput) {
-    return this.prisma.herramienta.update({ where: { id }, data });
+    return this.prisma.herramienta.update({
+      where: { id },
+      data,
+      include: { tipo: true },
+    });
   }
 }
