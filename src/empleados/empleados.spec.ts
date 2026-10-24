@@ -164,6 +164,113 @@ describe('Empleados: contrato HTTP de habilidades', () => {
     },
   );
 
+  it.each([
+    ['sin guion', '000000000'],
+    ['con dígito verificador incorrecto', '00000000-1'],
+    ['nulo', null],
+  ])('rechaza DUI %s al crear sin consultar ni guardar', async (_case, dui) => {
+    const response = await request(app.getHttpServer())
+      .post('/empleados')
+      .send({ ...empleado, dui })
+      .expect(400);
+
+    expect(response.body.message.dui).toBeDefined();
+    expect(repo.findDocumentConflicts).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['sin guion', '000000000'],
+    ['con dígito verificador incorrecto', '00000000-1'],
+    ['nulo', null],
+  ])('rechaza DUI %s al actualizar sin escribir', async (_case, dui) => {
+    const response = await request(app.getHttpServer())
+      .patch('/empleados/41')
+      .send({ dui })
+      .expect(400);
+
+    expect(response.body.message.dui).toBeDefined();
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('acepta un DUI con dígito verificador válido al crear y actualizar', async () => {
+    const dui = '01234567-8';
+
+    await request(app.getHttpServer())
+      .post('/empleados')
+      .send({ ...empleado, dui })
+      .expect(201);
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ dui }),
+      undefined,
+    );
+
+    await request(app.getHttpServer())
+      .patch('/empleados/41')
+      .send({ dui })
+      .expect(200);
+    expect(repo.update).toHaveBeenCalledWith(
+      41,
+      expect.objectContaining({ dui }),
+      undefined,
+    );
+  });
+
+  it.each([
+    ['formato tradicional incompleto', '0000-000000-000'],
+    ['NIT homologado con dígito incorrecto', '00000000-1'],
+    ['nulo', null],
+  ])('rechaza NIT %s al crear sin consultar ni guardar', async (_case, nit) => {
+    const response = await request(app.getHttpServer())
+      .post('/empleados')
+      .send({ ...empleado, nit })
+      .expect(400);
+
+    expect(response.body.message.nit).toBeDefined();
+    expect(repo.findDocumentConflicts).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['formato tradicional incompleto', '0000-000000-000'],
+    ['NIT homologado con dígito incorrecto', '00000000-1'],
+    ['nulo', null],
+  ])('rechaza NIT %s al actualizar sin escribir', async (_case, nit) => {
+    const response = await request(app.getHttpServer())
+      .patch('/empleados/41')
+      .send({ nit })
+      .expect(400);
+
+    expect(response.body.message.nit).toBeDefined();
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['tradicional', '0000-000000-000-0'],
+    ['homologado con el DUI', '01234567-8'],
+  ])('acepta NIT %s al crear y actualizar', async (_case, nit) => {
+    const dui = nit.length === 10 ? nit : empleado.dui;
+
+    await request(app.getHttpServer())
+      .post('/empleados')
+      .send({ ...empleado, dui, nit })
+      .expect(201);
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ dui, nit }),
+      undefined,
+    );
+
+    await request(app.getHttpServer())
+      .patch('/empleados/41')
+      .send({ nit })
+      .expect(200);
+    expect(repo.update).toHaveBeenCalledWith(
+      41,
+      expect.objectContaining({ nit }),
+      undefined,
+    );
+  });
+
   it('vuelve a consultar si aparece un duplicado entre la validación y el guardado', async () => {
     repo.findDocumentConflicts
       .mockResolvedValueOnce([])
