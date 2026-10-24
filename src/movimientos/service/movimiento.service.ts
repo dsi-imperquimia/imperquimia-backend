@@ -30,6 +30,10 @@ export class MovimientoService {
         'proyectoDestinoId es obligatorio cuando el destino es PROYECTO',
       );
     }
+    if (dto.destino === AreaMovimiento.PROYECTO &&
+        !(await this.repo.findProyectoAsignable(dto.proyectoDestinoId!))) {
+      throw new BadRequestException('El proyecto de destino no existe o está cancelado.');
+    }
 
     const estadoNuevo = this.deducirEstado(dto.destino, dto.conDano);
 

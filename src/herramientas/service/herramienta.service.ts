@@ -1,24 +1,41 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { HerramientaRepository } from '../repository/herramientaRepository';
 import { CreateHerramientaDto } from '../dto/create-herramienta.dto';
 import { UpdateHerramientaDto } from '../dto/update-herramienta.dto';
 import { EstadoHerramienta, Prisma } from '@gen/prisma/client';
+import { TiposHerramientaService } from './tipos-herramienta.service';
+import { MarcasHerramientaService } from './marcas-herramienta.service';
 
 @Injectable()
 export class HerramientaService {
-  constructor(private readonly repo: HerramientaRepository) {}
+  constructor(
+    private readonly repo: HerramientaRepository,
+    private readonly tipos: TiposHerramientaService,
+    private readonly marcas: MarcasHerramientaService,
+  ) {}
 
   async create(dto: CreateHerramientaDto) {
+    if (dto.proyectoId != null && !(await this.repo.findProyectoAsignable(dto.proyectoId))) {
+      throw new BadRequestException('El proyecto no existe o está cancelado.');
+    }
+    await this.tipos.ensureSelectable(dto.tipoId);
+    const marca = await this.marcas.ensureSelectable(dto.marcaId);
     const codigoUnico = await this.generarCodigoUnico();
 
-    return this.repo.create({
+    const herramienta = await this.repo.create({
       codigoUnico,
       nombre: dto.nombre,
-      marca: dto.marca,
-      tipo: dto.tipo,
+      marca: marca.nombre,
+      marcaId: marca.id,
+      tipoId: dto.tipoId,
       estado: EstadoHerramienta.DISPONIBLE,
       proyectoId: dto.proyectoId ?? null,
     });
+    return this.withTipoNombre(herramienta);
   }
 
   // Construye dinámicamente las condiciones del WHERE para Prisma
@@ -33,7 +50,10 @@ export class HerramientaService {
       where.estado = estado;
     }
 
-    return this.repo.findMany(Object.keys(where).length > 0 ? where : undefined);
+    const herramientas = await this.repo.findMany(
+      Object.keys(where).length > 0 ? where : undefined,
+    );
+    return herramientas.map((herramienta) => this.withTipoNombre(herramienta));
   }
 
   async findOne(id: number) {
@@ -41,12 +61,30 @@ export class HerramientaService {
     if (!herramienta) {
       throw new NotFoundException(`Herramienta #${id} no encontrada`);
     }
-    return herramienta;
+    return this.withTipoNombre(herramienta);
   }
 
   async update(id: number, dto: UpdateHerramientaDto) {
-    await this.findOne(id);
-    return this.repo.update(id, dto);
+    const actual = await this.findOne(id);
+    if (dto.tipoId !== undefined && dto.tipoId !== actual.tipoId) {
+      await this.tipos.ensureSelectable(dto.tipoId);
+    }
+    const marca =
+      dto.marcaId !== undefined && dto.marcaId !== actual.marcaId
+        ? await this.marcas.ensureSelectable(dto.marcaId)
+        : undefined;
+    const herramienta = await this.repo.update(id, {
+      ...dto,
+      ...(marca ? { marca: marca.nombre } : {}),
+    });
+    return this.withTipoNombre(herramienta);
+  }
+
+  private withTipoNombre<T extends { tipo: { nombre: string } }>(
+    herramienta: T,
+  ) {
+    const { tipo, ...datos } = herramienta;
+    return { ...datos, tipo: tipo.nombre };
   }
 
   private async generarCodigoUnico(): Promise<string> {

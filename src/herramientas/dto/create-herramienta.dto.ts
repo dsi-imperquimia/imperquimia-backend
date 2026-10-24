@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsInt } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsInt,
+  IsPositive,
+} from 'class-validator';
 import { EstadoHerramienta } from '@gen/prisma/client';
 
 export class CreateHerramientaDto {
@@ -6,13 +13,13 @@ export class CreateHerramientaDto {
   @IsNotEmpty()
   nombre!: string;
 
-  @IsString()
-  @IsNotEmpty()
-  marca!: string;
+  @IsInt()
+  @IsPositive()
+  marcaId!: number;
 
-  @IsString()
-  @IsNotEmpty()
-  tipo!: string;
+  @IsInt()
+  @IsPositive()
+  tipoId!: number;
 
   @IsEnum(EstadoHerramienta)
   @IsOptional()
