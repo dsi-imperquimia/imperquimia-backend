@@ -1,6 +1,8 @@
 import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
 import { UpdateHabilidadesEmpleadoDto } from './updateHabilidadesEmpleado';
+import { IsValidDui } from './validarDui';
+import { IsValidNit } from './validarNit';
 
 // DTO para crear un empleado. Comentarios en español y validaciones básicas.
 export class CreateEmpleadoDto extends PartialType(
@@ -14,10 +16,12 @@ export class CreateEmpleadoDto extends PartialType(
   nombreCompleto!: string;
 
   @IsString()
+  @IsValidDui()
   // DUI (documento único de identidad)
   dui!: string;
 
   @IsString()
+  @IsValidNit()
   // NIT (número de identificación tributaria)
   nit!: string;
 
