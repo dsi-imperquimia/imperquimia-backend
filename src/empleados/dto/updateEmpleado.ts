@@ -1,6 +1,8 @@
 import { IsString, IsInt, IsBoolean, IsOptional } from 'class-validator';
 import { PartialType } from '@nestjs/swagger';
 import { CreateEmpleadoDto } from './createEmpleado';
+import { IsValidDui } from './validarDui';
+import { IsValidNit } from './validarNit';
 
 // DTO para actualizar campos del empleado. Todos son opcionales.
 export class UpdateEmpleadoDto extends PartialType(CreateEmpleadoDto, {
@@ -10,12 +12,12 @@ export class UpdateEmpleadoDto extends PartialType(CreateEmpleadoDto, {
   @IsString()
   nombreCompleto?: string;
 
-  @IsOptional()
   @IsString()
+  @IsValidDui()
   dui?: string;
 
-  @IsOptional()
   @IsString()
+  @IsValidNit()
   nit?: string;
 
   @IsOptional()
