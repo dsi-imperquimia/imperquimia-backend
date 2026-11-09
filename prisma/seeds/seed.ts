@@ -4,6 +4,7 @@ import { env } from '@/config/env.config';
 import { PrismaClient } from '@gen/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { fixSequences } from './fix-sequences';
+import { seedEmpleados } from './empleados';
 import { seedMateriales } from './materiales';
 import { seedProyectos } from './proyectos';
 import { seedRoles } from './roolesSeed';
@@ -16,6 +17,7 @@ const prisma = new PrismaClient({
 async function main() {
   await seedRoles(prisma);
   await seedUsers(prisma);
+  await seedEmpleados(prisma);
   await seedMateriales(prisma);
   await seedProyectos(prisma);
   await fixSequences(prisma);
