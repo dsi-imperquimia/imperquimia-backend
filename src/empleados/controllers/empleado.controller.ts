@@ -31,6 +31,12 @@ export class EmpleadoController {
     return this.empleadoService.findAll();
   }
 
+  // GET /empleados/asignaciones -> panel de asignaciones y carga por empleado
+  @Get('asignaciones')
+  findAsignaciones() {
+    return this.empleadoService.findAsignaciones();
+  }
+
   // GET /empleados/:id -> obtener por id
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {

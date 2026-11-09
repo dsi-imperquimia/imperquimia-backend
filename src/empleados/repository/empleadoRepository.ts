@@ -30,6 +30,27 @@ export class EmpleadoRepository {
       include: empleadoInclude,
     });
   }
+  // Empleados activos con sus asignaciones de proyecto vigentes (GPRCIMPER-83)
+  findAsignaciones() {
+    return this.prisma.models.empleado.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        nombreCompleto: true,
+        activo: true,
+        cargo: { select: { nombre: true } },
+        proyectos: {
+          where: { fechaRetiro: null },
+          select: {
+            fechaAsignacion: true,
+            proyecto: { select: { id: true, nombre: true, estado: true } },
+          },
+          orderBy: { fechaAsignacion: 'desc' },
+        },
+      },
+      orderBy: { nombreCompleto: 'asc' },
+    });
+  }
   // Consulta sin el filtro de borrado lógico: un empleado eliminado todavía
   // ocupa su DUI y NIT en los índices únicos de la base de datos.
   findDocumentConflicts(dui: string, nit: string) {

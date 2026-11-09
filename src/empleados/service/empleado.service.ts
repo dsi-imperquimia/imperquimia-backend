@@ -60,6 +60,29 @@ export class EmpleadoService {
     return this.repo.findMany();
   }
 
+  // Panel de asignaciones por empleado: proyecto(s) activos y carga actual (GPRCIMPER-83)
+  async findAsignaciones() {
+    const empleados = await this.repo.findAsignaciones();
+    return empleados.map((empleado) => {
+      const proyectos = empleado.proyectos.map((asignacion) => ({
+        id: asignacion.proyecto.id,
+        nombre: asignacion.proyecto.nombre,
+        estado: asignacion.proyecto.estado,
+        fechaAsignacion: asignacion.fechaAsignacion,
+      }));
+      const cargaHoraria = proyectos.length;
+      return {
+        empleadoId: empleado.id,
+        nombreCompleto: empleado.nombreCompleto,
+        cargo: empleado.cargo?.nombre ?? null,
+        activo: empleado.activo,
+        proyectos,
+        cargaHoraria,
+        sobreasignado: cargaHoraria > 1,
+      };
+    });
+  }
+
   // Obtiene un empleado por id; lanza NotFoundException si no existe
   async findOne(id: number): Promise<Empleado> {
     const empleado = await this.repo.findUnique(id);
