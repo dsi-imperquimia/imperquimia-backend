@@ -44,4 +44,13 @@ export class CreateUserDto {
     message: 'Las permissions deben ser un arreglo de números',
   })
   permissionsIds?: number[] = [];
+
+  @IsOptional()
+  @IsNumber(
+    {},
+    {
+      message: 'El empleado debe ser un número',
+    },
+  )
+  empleadoId?: number;
 }
