@@ -147,10 +147,17 @@ export class ProyectoService {
 
   async create(dto: CreateProyectoDto, userId: number) {
     const presupuesto = await this.presupuesto(dto.detalles ?? []);
+    if (
+      dto.jefeProyectoId !== undefined &&
+      !(await this.repo.empleadoDisponible(dto.jefeProyectoId))
+    ) {
+      throw new NotFoundException('Empleado no encontrado o inactivo.');
+    }
     return this.repo.create({
       ...this.datosProyecto(dto),
       creadoPorId: userId,
       cotizacionId: null,
+      jefeProyectoId: dto.jefeProyectoId ?? null,
       ...presupuesto,
     });
   }

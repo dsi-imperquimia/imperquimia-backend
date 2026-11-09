@@ -52,4 +52,5 @@ export class CreateProyectoDto {
   @ValidateNested({ each: true })
   @Type(() => DetalleProyectoDto)
   detalles?: DetalleProyectoDto[];
+  @IsOptional() @IsInt() @Min(1) jefeProyectoId?: number;
 }
