@@ -271,4 +271,30 @@ export class ProyectoService {
       );
     return { message: 'Empleado retirado del proyecto.' };
   }
+
+  async asignarJefe(proyectoId: number, empleadoId: number) {
+    const proyecto = await this.findOne(proyectoId);
+    if (proyecto.estado === 'CANCELADO') {
+      throw new ConflictException(
+        'No se puede asignar un jefe a un proyecto cancelado.',
+      );
+    }
+    if (!(await this.repo.empleadoDisponible(empleadoId))) {
+      throw new NotFoundException('Empleado no encontrado o inactivo.');
+    }
+    if (proyecto.jefeProyectoId === empleadoId) {
+      throw new ConflictException(
+        'Este empleado ya es el jefe de este proyecto.',
+      );
+    }
+    return this.repo.asignarJefe(proyectoId, empleadoId);
+  }
+
+  async retirarJefe(proyectoId: number) {
+    const proyecto = await this.findOne(proyectoId);
+    if (!proyecto.jefeProyectoId) {
+      throw new NotFoundException('El proyecto no tiene un jefe asignado.');
+    }
+    return this.repo.retirarJefe(proyectoId);
+  }
 }

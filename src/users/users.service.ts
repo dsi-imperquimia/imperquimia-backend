@@ -17,6 +17,8 @@ const userSelect = {
   roleId: true,
   permissions: true,
   role: true,
+  empleadoId: true,
+  empleado: { select: { id: true, nombreCompleto: true } },
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -71,8 +73,42 @@ export class UsersService {
     }
   }
 
+  private async assertEmpleadoDisponible(empleadoId: number, excludeId?: number) {
+    const empleado = await this.repo.empleado.findFirst({
+      where: { id: empleadoId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!empleado) {
+      throw new NotFoundException({
+        message: { empleadoId: ['El empleado no existe.'] },
+        error: 'Not Found',
+        statusCode: 404,
+      });
+    }
+
+    const enUso = await this.repo.findFirst({
+      where: {
+        empleadoId,
+        ...(excludeId !== undefined && { NOT: { id: excludeId } }),
+      },
+      select: { id: true },
+    });
+    if (enUso) {
+      throw new ConflictException({
+        message: {
+          empleadoId: ['Este empleado ya tiene un usuario del sistema asignado.'],
+        },
+        error: 'Conflict',
+        statusCode: 409,
+      });
+    }
+  }
+
   async create(createUserDto: CreateUserDto) {
     await this.assertEmailAvailable(createUserDto.email);
+    if (createUserDto.empleadoId !== undefined) {
+      await this.assertEmpleadoDisponible(createUserDto.empleadoId);
+    }
 
     const password = await bcrypt.hash(createUserDto.password, 12);
 
@@ -82,6 +118,7 @@ export class UsersService {
         lastName: createUserDto.lastName,
         email: createUserDto.email,
         roleId: createUserDto.roleId,
+        empleadoId: createUserDto.empleadoId ?? null,
         password,
       },
       select: userSelect,
@@ -138,6 +175,13 @@ export class UsersService {
 
     if (updateUserDto.roleId !== undefined) {
       data.roleId = updateUserDto.roleId;
+    }
+
+    if (updateUserDto.empleadoId !== undefined) {
+      if (updateUserDto.empleadoId !== null) {
+        await this.assertEmpleadoDisponible(updateUserDto.empleadoId, id);
+      }
+      data.empleadoId = updateUserDto.empleadoId;
     }
 
     if (updateUserDto.password !== undefined) {
