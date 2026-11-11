@@ -22,7 +22,17 @@ export class ProyectoRepository {
         },
         detalles: { include: { material: true }, orderBy: { id: 'asc' } },
         empleados: {
-          include: { empleado: { select: { id: true, nombreCompleto: true, activo: true, cargo: { select: { nombre: true } } } } },
+          include: {
+            empleado: {
+              select: {
+                id: true,
+                nombreCompleto: true,
+                activo: true,
+                cargo: { select: { nombre: true } },
+                habilidades: { include: { habilidad: true } },
+              },
+            },
+          },
           orderBy: { fechaAsignacion: 'desc' },
         },
         jefeProyecto: {
