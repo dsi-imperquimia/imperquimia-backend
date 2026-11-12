@@ -309,10 +309,20 @@ model MovimientoHerramienta {
 
 enum EstadoProyecto {
   ACTIVO
+  EN_PAUSA
   FINALIZADO
   PAGADO
   GARANTIA
   CANCELADO
+}
+
+// Tipo de obra del proyecto (GPRCIMPER-27)
+enum TipoObra {
+  RESIDENCIAL
+  COMERCIAL
+  INDUSTRIAL
+  INFRAESTRUCTURA
+  OTRO
 }
 
 model Proyecto {
@@ -320,6 +330,9 @@ model Proyecto {
   nombre    String
   ubicacion String?
   estado    EstadoProyecto @default(ACTIVO)
+  // Tipo de obra y presupuesto manual, editables desde el detalle (GPRCIMPER-27)
+  tipoObra    TipoObra? @map("tipo_obra")
+  presupuesto Decimal?  @db.Decimal(10, 2)
 
   descripcion String?
   // Nullable para conservar proyectos anteriores. Exigir fechas y cliente en nuevas creaciones desde la API.

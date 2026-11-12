@@ -187,18 +187,29 @@ export class ProyectoService {
           ? (actual.fechaFin?.toISOString().slice(0, 10) ?? '')
           : dto.fechaFin,
     });
-    if (dto.detalles === undefined) return this.repo.update(id, datos);
+    const camposEditables = {
+      ...(dto.estado !== undefined && { estado: dto.estado }),
+      ...(dto.tipoObra !== undefined && { tipoObra: dto.tipoObra }),
+      ...(dto.presupuesto !== undefined && { presupuesto: dto.presupuesto }),
+    };
+
+    if (dto.detalles === undefined)
+      return this.repo.update(id, { ...datos, ...camposEditables });
     if (dto.detalles === null)
       throw new BadRequestException(
         'Los materiales deben enviarse en un arreglo.',
       );
-    const presupuesto = await this.presupuesto(dto.detalles, actual.detalles);
+    const presupuestoMateriales = await this.presupuesto(
+      dto.detalles,
+      actual.detalles,
+    );
     return this.repo.update(id, {
       ...datos,
-      subTotal: presupuesto.subTotal,
-      totalIva: presupuesto.totalIva,
-      total: presupuesto.total,
-      detalles: { deleteMany: {}, create: presupuesto.detalles.create },
+      ...camposEditables,
+      subTotal: presupuestoMateriales.subTotal,
+      totalIva: presupuestoMateriales.totalIva,
+      total: presupuestoMateriales.total,
+      detalles: { deleteMany: {}, create: presupuestoMateriales.detalles.create },
     });
   }
 
