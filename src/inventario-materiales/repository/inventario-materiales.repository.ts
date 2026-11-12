@@ -10,7 +10,10 @@ import { Injectable } from '@nestjs/common';
 export type DireccionMovimiento = 'ENTRADA' | 'SALIDA';
 
 export class InventarioOperacionError extends Error {
-  constructor(public readonly code: string) {
+  constructor(
+    public readonly code: string,
+    public readonly details?: { cantidadDisponible?: string },
+  ) {
     super(code);
   }
 }
@@ -151,8 +154,8 @@ export class InventarioMaterialesRepository {
         });
         if (!proyecto)
           throw new InventarioOperacionError('PROYECTO_NO_ENCONTRADO');
-        if (proyecto.estado === 'CANCELADO') {
-          throw new InventarioOperacionError('PROYECTO_CANCELADO');
+        if (proyecto.estado !== 'ACTIVO') {
+          throw new InventarioOperacionError('PROYECTO_NO_ACTIVO');
         }
         ubicacionProyecto = await tx.ubicacionMaterial.upsert({
           where: { codigo: `PROYECTO-${proyecto.id}` },
@@ -211,7 +214,18 @@ export class InventarioMaterialesRepository {
           data: { cantidad: { decrement: datos.cantidad } },
         });
         if (descontado.count !== 1) {
-          throw new InventarioOperacionError('SALDO_INSUFICIENTE');
+          const existencia = await tx.existenciaMaterial.findUnique({
+            where: {
+              materialId_ubicacionId: {
+                materialId: datos.materialId,
+                ubicacionId: origenId,
+              },
+            },
+            select: { cantidad: true },
+          });
+          throw new InventarioOperacionError('SALDO_INSUFICIENTE', {
+            cantidadDisponible: existencia?.cantidad.toString() ?? '0',
+          });
         }
       }
 

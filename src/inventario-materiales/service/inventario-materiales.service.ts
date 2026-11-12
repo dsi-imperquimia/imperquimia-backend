@@ -64,7 +64,7 @@ export class InventarioMaterialesService {
       return { movimiento: resultado, repetido: false };
     } catch (error) {
       if (error instanceof InventarioOperacionError) {
-        this.throwRepositoryError(error.code);
+        this.throwRepositoryError(error.code, error.details);
       }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -159,21 +159,24 @@ export class InventarioMaterialesService {
     return { movimiento, repetido: true };
   }
 
-  private throwRepositoryError(error: string): never {
+  private throwRepositoryError(
+    error: string,
+    details?: { cantidadDisponible?: string },
+  ): never {
     if (error === 'MATERIAL_NO_ENCONTRADO') {
       throw new NotFoundException('Material no encontrado.');
     }
     if (error === 'PROYECTO_NO_ENCONTRADO') {
       throw new NotFoundException('Proyecto no encontrado.');
     }
-    if (error === 'PROYECTO_CANCELADO') {
+    if (error === 'PROYECTO_NO_ACTIVO') {
       throw new ConflictException(
-        'No se permiten movimientos en un proyecto cancelado.',
+        'Solo se pueden registrar movimientos de materiales en proyectos activos.',
       );
     }
     if (error === 'SALDO_INSUFICIENTE') {
       throw new ConflictException(
-        'La cantidad supera el saldo disponible en el origen.',
+        `La cantidad supera el saldo disponible en el origen. Actualmente hay ${details?.cantidadDisponible ?? '0'} unidades disponibles.`,
       );
     }
     throw new ServiceUnavailableException(

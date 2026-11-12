@@ -116,5 +116,50 @@ db('Inventario de materiales: integración PostgreSQL', () => {
     expect(
       await prisma.movimientoMaterial.count({ where: { materialId } }),
     ).toBe(2);
+
+    await prisma.proyecto.update({
+      where: { id: proyectoId },
+      data: { estado: 'FINALIZADO' },
+    });
+    await expect(
+      service.registrarSalida(
+        {
+          claveOperacion: randomUUID(),
+          materialId: materialId!,
+          cantidad: 1,
+          motivo: MotivoMovimientoMaterial.USO_PROYECTO,
+          proyectoId,
+        },
+        userId!,
+      ),
+    ).rejects.toThrow(
+      'Solo se pueden registrar movimientos de materiales en proyectos activos.',
+    );
+
+    await expect(
+      service.registrarEntrada(
+        {
+          claveOperacion: randomUUID(),
+          materialId: materialId!,
+          cantidad: 60,
+          motivo: MotivoMovimientoMaterial.DEVOLUCION_PROYECTO,
+          proyectoId,
+        },
+        userId!,
+      ),
+    ).rejects.toThrow(
+      'Solo se pueden registrar movimientos de materiales en proyectos activos.',
+    );
+    const saldosFinales = await service.findExistencias(materialId);
+    expect(
+      saldosFinales
+        .find((item) => item.ubicacion.tipo === 'BODEGA')
+        ?.cantidad.toString(),
+    ).toBe('40');
+    expect(
+      saldosFinales
+        .find((item) => item.ubicacion.proyectoId === proyectoId)
+        ?.cantidad.toString(),
+    ).toBe('60');
   });
 });

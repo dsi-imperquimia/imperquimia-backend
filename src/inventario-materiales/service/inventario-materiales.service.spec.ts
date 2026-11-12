@@ -114,7 +114,9 @@ describe('InventarioMaterialesService', () => {
     const { repo, service } = setup();
     repo.findMovimientoByKey.mockResolvedValue(null);
     repo.registrar.mockRejectedValue(
-      new InventarioOperacionError('SALDO_INSUFICIENTE'),
+      new InventarioOperacionError('SALDO_INSUFICIENTE', {
+        cantidadDisponible: '12.5',
+      }),
     );
 
     await expect(
@@ -129,7 +131,8 @@ describe('InventarioMaterialesService', () => {
       ),
     ).rejects.toMatchObject({
       status: 409,
-      message: 'La cantidad supera el saldo disponible en el origen.',
+      message:
+        'La cantidad supera el saldo disponible en el origen. Actualmente hay 12.5 unidades disponibles.',
     });
   });
 
