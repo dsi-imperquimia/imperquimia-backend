@@ -65,6 +65,13 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 28, name: 'HERRAMIENTA_DELETE', description: 'Permiso para eliminar herramientas' },
   ];
 
+  // prettier-ignore
+  const inventarioMaterialesPermissions: PermissionType[] = [
+    { id: 29, name: 'INVENTARIO_MATERIAL_READ', description: 'Permiso para consultar existencias y movimientos de materiales' },
+    { id: 30, name: 'INVENTARIO_MATERIAL_ENTRY', description: 'Permiso para registrar entradas de materiales' },
+    { id: 31, name: 'INVENTARIO_MATERIAL_EXIT', description: 'Permiso para registrar salidas de materiales' },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
@@ -73,6 +80,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...proyectoPermissions,
     ...rolePermissions,
     ...herramientasPermissions,
+    ...inventarioMaterialesPermissions,
   ];
 
   for (const permission of permissions) {
