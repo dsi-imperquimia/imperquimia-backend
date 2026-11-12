@@ -60,6 +60,44 @@ export class EmpleadoService {
     return this.repo.findMany();
   }
 
+  // Panel de asignaciones por empleado: proyecto(s) activos y carga actual (GPRCIMPER-83)
+  async findAsignaciones() {
+    const empleados = await this.repo.findAsignaciones();
+    return empleados.map((empleado) => {
+      // Un mismo proyecto puede aparecer como técnico y como jefe a la vez,
+      // así que se agrupan por proyecto y se acumulan los roles.
+      const porProyecto = new Map<
+        number,
+        { id: number; nombre: string; estado: string; roles: Set<'TECNICO' | 'JEFE'> }
+      >();
+      for (const { proyecto } of empleado.proyectos) {
+        const entry =
+          porProyecto.get(proyecto.id) ?? { ...proyecto, roles: new Set() };
+        entry.roles.add('TECNICO');
+        porProyecto.set(proyecto.id, entry);
+      }
+      for (const proyecto of empleado.proyectosComoJefe) {
+        const entry =
+          porProyecto.get(proyecto.id) ?? { ...proyecto, roles: new Set() };
+        entry.roles.add('JEFE');
+        porProyecto.set(proyecto.id, entry);
+      }
+      const proyectos = [...porProyecto.values()].map(
+        ({ roles, ...proyecto }) => ({ ...proyecto, roles: [...roles] }),
+      );
+      const cargaHoraria = proyectos.length;
+      return {
+        empleadoId: empleado.id,
+        nombreCompleto: empleado.nombreCompleto,
+        cargo: empleado.cargo?.nombre ?? null,
+        activo: empleado.activo,
+        proyectos,
+        cargaHoraria,
+        sobreasignado: cargaHoraria > 1,
+      };
+    });
+  }
+
   // Obtiene un empleado por id; lanza NotFoundException si no existe
   async findOne(id: number): Promise<Empleado> {
     const empleado = await this.repo.findUnique(id);
