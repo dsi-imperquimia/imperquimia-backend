@@ -326,6 +326,8 @@ model Proyecto {
   fechaInicio DateTime? @map("fecha_inicio") @db.Date
   fechaFin    DateTime? @map("fecha_fin") @db.Date
   cliente     String?
+  // Motivo ingresado al cancelar el proyecto (GPRCIMPER-28).
+  motivoCancelacion String? @map("motivo_cancelacion")
   // La API debe exigir al menos un contacto no vacio: phone o email.
   phone       String?
   email       String?

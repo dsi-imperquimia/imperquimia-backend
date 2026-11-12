@@ -88,10 +88,26 @@ export class ProyectoRepository {
     });
   }
 
-  cancelar(id: number) {
+  cancelar(id: number, motivo: string) {
     return this.prisma.proyecto.update({
       where: { id, deletedAt: null },
-      data: { estado: 'CANCELADO' },
+      data: { estado: 'CANCELADO', motivoCancelacion: motivo },
+    });
+  }
+
+  // Empleados con asignación vigente al momento de cancelar, con su correo
+  // de usuario (si tienen cuenta) para notificarles (GPRCIMPER-28).
+  findCorreosEmpleadosActivos(proyectoId: number) {
+    return this.prisma.proyectoEmpleado.findMany({
+      where: { proyectoId, fechaRetiro: null },
+      select: {
+        empleado: {
+          select: {
+            nombreCompleto: true,
+            user: { select: { email: true } },
+          },
+        },
+      },
     });
   }
 }

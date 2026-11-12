@@ -13,10 +13,12 @@ import { HerramientasModule } from './herramientas/herramientas.module';
 import { MaterialesModule } from './materiales/materiales.module';
 import { MovimientosModule } from './movimientos/movimientos.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
+import { MailModule } from './common/mail/mail.module';
 
 @Module({
   imports: [
     PrismaModule,
+    MailModule,
     UsersModule,
     AuthModule,
     CargoModule,

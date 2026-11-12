@@ -11,12 +11,16 @@ import {
   DetalleProyectoDto,
 } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
+import { MailService } from '@/common/mail/mail.service';
 
 const MAX_IMPORTE = new Prisma.Decimal('99999999.99');
 
 @Injectable()
 export class ProyectoService {
-  constructor(private readonly repo: ProyectoRepository) {}
+  constructor(
+    private readonly repo: ProyectoRepository,
+    private readonly mail: MailService,
+  ) {}
 
   private datosProyecto(dto: CreateProyectoDto) {
     if (dto.phone?.trim() && !/^\d{8}$/.test(dto.phone.trim()))
@@ -214,28 +218,40 @@ export class ProyectoService {
     return proyecto;
   }
 
-  async cancelar(id: number) {
+  async cancelar(id: number, motivo: string) {
     const proyecto = await this.findOne(id);
 
     if (proyecto.estado === 'CANCELADO') {
       throw new ConflictException('El proyecto ya está cancelado.');
     }
 
-    if (
-      proyecto.empleados.some((asignacion) => asignacion.fechaRetiro === null)
-    ) {
-      throw new ConflictException(
-        'Retira los empleados asignados antes de cancelar el proyecto.',
-      );
-    }
+    const cancelado = await this.repo.cancelar(id, motivo);
+    await this.notificarCancelacion(proyecto.nombre, motivo, id);
+    return cancelado;
+  }
 
-    if (proyecto.herramientas.length > 0) {
-      throw new BadRequestException(
-        `No se puede cancelar el proyecto #${id} porque tiene ${proyecto.herramientas.length} herramienta(s) asignada(s)`,
-      );
-    }
-
-    return this.repo.cancelar(id);
+  // Avisa por correo a los empleados con asignación vigente al momento de
+  // cancelar (GPRCIMPER-28). El envío no bloquea la cancelación si falla.
+  private async notificarCancelacion(
+    nombreProyecto: string,
+    motivo: string,
+    proyectoId: number,
+  ) {
+    const asignaciones = await this.repo.findCorreosEmpleadosActivos(
+      proyectoId,
+    );
+    const correos = asignaciones
+      .map((asignacion) => asignacion.empleado.user?.email)
+      .filter((email): email is string => Boolean(email));
+    await Promise.all(
+      correos.map((email) =>
+        this.mail.enviar({
+          to: email,
+          subject: `Proyecto cancelado: ${nombreProyecto}`,
+          text: `El proyecto "${nombreProyecto}" fue cancelado.\nMotivo: ${motivo}`,
+        }),
+      ),
+    );
   }
 
   async asignarEmpleado(proyectoId: number, empleadoId: number) {
