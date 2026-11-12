@@ -248,25 +248,7 @@ export class ProyectoService {
     if (!(await this.repo.empleadoDisponible(empleadoId))) {
       throw new NotFoundException('Empleado no encontrado o inactivo.');
     }
-    if (await this.repo.asignacionActiva(empleadoId)) {
-      throw new ConflictException(
-        'El empleado ya tiene una asignación activa. Retíralo antes de asignarlo nuevamente.',
-      );
-    }
-    try {
-      return await this.repo.asignarEmpleado(proyectoId, empleadoId);
-    } catch (error) {
-      // El indice protege tambien solicitudes concurrentes que superen la comprobacion anterior.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'El empleado ya tiene una asignación activa.',
-        );
-      }
-      throw error;
-    }
+    return this.repo.asignarEmpleado(proyectoId, empleadoId);
   }
 
   async retirarEmpleado(proyectoId: number, empleadoId: number) {

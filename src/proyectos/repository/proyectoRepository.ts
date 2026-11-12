@@ -59,10 +59,6 @@ export class ProyectoRepository {
     return this.prisma.empleado.findFirst({ where: { id: empleadoId, activo: true, deletedAt: null } });
   }
 
-  asignacionActiva(empleadoId: number) {
-    return this.prisma.proyectoEmpleado.findFirst({ where: { empleadoId, fechaRetiro: null } });
-  }
-
   asignarEmpleado(proyectoId: number, empleadoId: number) {
     return this.prisma.proyectoEmpleado.upsert({
       where: { proyectoId_empleadoId: { proyectoId, empleadoId } },
