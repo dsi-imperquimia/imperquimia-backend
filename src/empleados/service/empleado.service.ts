@@ -64,12 +64,27 @@ export class EmpleadoService {
   async findAsignaciones() {
     const empleados = await this.repo.findAsignaciones();
     return empleados.map((empleado) => {
-      const proyectos = empleado.proyectos.map((asignacion) => ({
-        id: asignacion.proyecto.id,
-        nombre: asignacion.proyecto.nombre,
-        estado: asignacion.proyecto.estado,
-        fechaAsignacion: asignacion.fechaAsignacion,
-      }));
+      // Un mismo proyecto puede aparecer como técnico y como jefe a la vez,
+      // así que se agrupan por proyecto y se acumulan los roles.
+      const porProyecto = new Map<
+        number,
+        { id: number; nombre: string; estado: string; roles: Set<'TECNICO' | 'JEFE'> }
+      >();
+      for (const { proyecto } of empleado.proyectos) {
+        const entry =
+          porProyecto.get(proyecto.id) ?? { ...proyecto, roles: new Set() };
+        entry.roles.add('TECNICO');
+        porProyecto.set(proyecto.id, entry);
+      }
+      for (const proyecto of empleado.proyectosComoJefe) {
+        const entry =
+          porProyecto.get(proyecto.id) ?? { ...proyecto, roles: new Set() };
+        entry.roles.add('JEFE');
+        porProyecto.set(proyecto.id, entry);
+      }
+      const proyectos = [...porProyecto.values()].map(
+        ({ roles, ...proyecto }) => ({ ...proyecto, roles: [...roles] }),
+      );
       const cargaHoraria = proyectos.length;
       return {
         empleadoId: empleado.id,

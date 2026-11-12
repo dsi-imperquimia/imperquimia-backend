@@ -40,12 +40,17 @@ export class EmpleadoRepository {
         activo: true,
         cargo: { select: { nombre: true } },
         proyectos: {
-          where: { fechaRetiro: null },
+          where: { fechaRetiro: null, proyecto: { estado: { not: 'FINALIZADO' } } },
           select: {
             fechaAsignacion: true,
             proyecto: { select: { id: true, nombre: true, estado: true } },
           },
           orderBy: { fechaAsignacion: 'desc' },
+        },
+        // Proyectos donde el empleado es el jefe (no pasa por la tabla pivote de técnicos).
+        proyectosComoJefe: {
+          where: { deletedAt: null, estado: { not: 'FINALIZADO' } },
+          select: { id: true, nombre: true, estado: true },
         },
       },
       orderBy: { nombreCompleto: 'asc' },
