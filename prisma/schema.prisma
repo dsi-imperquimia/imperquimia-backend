@@ -326,6 +326,9 @@ model Proyecto {
   fechaInicio DateTime? @map("fecha_inicio") @db.Date
   fechaFin    DateTime? @map("fecha_fin") @db.Date
   cliente     String?
+  // Evitan reenviar la misma alerta de vencimiento en cada revisión (GPRCIMPER-26).
+  alertaProximaEnviada Boolean @default(false) @map("alerta_proxima_enviada")
+  alertaVencidaEnviada Boolean @default(false) @map("alerta_vencida_enviada")
   // La API debe exigir al menos un contacto no vacio: phone o email.
   phone       String?
   email       String?
