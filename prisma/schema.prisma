@@ -378,8 +378,8 @@ model DetalleProyecto {
 }
 
 model ProyectoEmpleado {
-  // Indice unico parcial en SQL: empleado_id WHERE fecha_retiro IS NULL.
-  // Mantener la migracion 20260914030000_empleado_un_proyecto_activo.
+  // Un empleado puede tener varias asignaciones activas a la vez (una por
+  // proyecto distinto); @@id ya impide duplicar la fila proyecto+empleado.
   proyectoId      Int       @map("proyecto_id")
   empleadoId      Int       @map("empleado_id")
   proyecto        Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
