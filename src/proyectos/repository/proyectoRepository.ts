@@ -22,8 +22,21 @@ export class ProyectoRepository {
         },
         detalles: { include: { material: true }, orderBy: { id: 'asc' } },
         empleados: {
-          include: { empleado: { select: { id: true, nombreCompleto: true, activo: true, cargo: { select: { nombre: true } } } } },
+          include: {
+            empleado: {
+              select: {
+                id: true,
+                nombreCompleto: true,
+                activo: true,
+                cargo: { select: { nombre: true } },
+                habilidades: { include: { habilidad: true } },
+              },
+            },
+          },
           orderBy: { fechaAsignacion: 'desc' },
+        },
+        jefeProyecto: {
+          select: { id: true, nombreCompleto: true, activo: true, cargo: { select: { nombre: true } } },
         },
         creadoPor: { select: { id: true, name: true, lastName: true } },
       },
@@ -46,10 +59,6 @@ export class ProyectoRepository {
     return this.prisma.empleado.findFirst({ where: { id: empleadoId, activo: true, deletedAt: null } });
   }
 
-  asignacionActiva(empleadoId: number) {
-    return this.prisma.proyectoEmpleado.findFirst({ where: { empleadoId, fechaRetiro: null } });
-  }
-
   asignarEmpleado(proyectoId: number, empleadoId: number) {
     return this.prisma.proyectoEmpleado.upsert({
       where: { proyectoId_empleadoId: { proyectoId, empleadoId } },
@@ -62,6 +71,20 @@ export class ProyectoRepository {
     return this.prisma.proyectoEmpleado.updateMany({
       where: { proyectoId, empleadoId, fechaRetiro: null },
       data: { fechaRetiro: new Date() },
+    });
+  }
+
+  asignarJefe(proyectoId: number, empleadoId: number) {
+    return this.prisma.proyecto.update({
+      where: { id: proyectoId, deletedAt: null },
+      data: { jefeProyectoId: empleadoId },
+    });
+  }
+
+  retirarJefe(proyectoId: number) {
+    return this.prisma.proyecto.update({
+      where: { id: proyectoId, deletedAt: null },
+      data: { jefeProyectoId: null },
     });
   }
 

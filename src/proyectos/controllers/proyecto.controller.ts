@@ -38,6 +38,17 @@ export class ProyectoController {
     return this.proyectoService.retirarEmpleado(id, empleadoId);
   }
 
+  // POST /proyectos/:id/jefe/:empleadoId -> asignar jefe de proyecto (GPRCIMPER-23)
+  @Post(':id/jefe/:empleadoId')
+  asignarJefe(@Param('id', ParseIntPipe) id: number, @Param('empleadoId', ParseIntPipe) empleadoId: number) {
+    return this.proyectoService.asignarJefe(id, empleadoId);
+  }
+
+  @Patch(':id/jefe/retirar')
+  retirarJefe(@Param('id', ParseIntPipe) id: number) {
+    return this.proyectoService.retirarJefe(id);
+  }
+
   @Get()
   findAll() {
     return this.proyectoService.findAll();

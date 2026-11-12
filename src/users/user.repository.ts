@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type UserDelegate = PrismaService['models']['user'];
 type UserPermissionDelegate = PrismaService['models']['userPermission'];
+type EmpleadoDelegate = PrismaService['models']['empleado'];
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export interface UserRepository extends UserDelegate {}
@@ -12,9 +13,11 @@ export interface UserRepository extends UserDelegate {}
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class UserRepository implements UserDelegate {
   userPermission: UserPermissionDelegate;
+  empleado: EmpleadoDelegate;
 
   constructor(private readonly prisma: PrismaService) {
     mixinClass(this, this.prisma.models.user);
     this.userPermission = this.prisma.models.userPermission;
+    this.empleado = this.prisma.models.empleado;
   }
 }

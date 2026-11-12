@@ -147,10 +147,17 @@ export class ProyectoService {
 
   async create(dto: CreateProyectoDto, userId: number) {
     const presupuesto = await this.presupuesto(dto.detalles ?? []);
+    if (
+      dto.jefeProyectoId !== undefined &&
+      !(await this.repo.empleadoDisponible(dto.jefeProyectoId))
+    ) {
+      throw new NotFoundException('Empleado no encontrado o inactivo.');
+    }
     return this.repo.create({
       ...this.datosProyecto(dto),
       creadoPorId: userId,
       cotizacionId: null,
+      jefeProyectoId: dto.jefeProyectoId ?? null,
       ...presupuesto,
     });
   }
@@ -241,25 +248,7 @@ export class ProyectoService {
     if (!(await this.repo.empleadoDisponible(empleadoId))) {
       throw new NotFoundException('Empleado no encontrado o inactivo.');
     }
-    if (await this.repo.asignacionActiva(empleadoId)) {
-      throw new ConflictException(
-        'El empleado ya tiene una asignación activa. Retíralo antes de asignarlo nuevamente.',
-      );
-    }
-    try {
-      return await this.repo.asignarEmpleado(proyectoId, empleadoId);
-    } catch (error) {
-      // El indice protege tambien solicitudes concurrentes que superen la comprobacion anterior.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'El empleado ya tiene una asignación activa.',
-        );
-      }
-      throw error;
-    }
+    return this.repo.asignarEmpleado(proyectoId, empleadoId);
   }
 
   async retirarEmpleado(proyectoId: number, empleadoId: number) {
@@ -270,5 +259,31 @@ export class ProyectoService {
         'No existe una asignación activa de este empleado en el proyecto.',
       );
     return { message: 'Empleado retirado del proyecto.' };
+  }
+
+  async asignarJefe(proyectoId: number, empleadoId: number) {
+    const proyecto = await this.findOne(proyectoId);
+    if (proyecto.estado === 'CANCELADO') {
+      throw new ConflictException(
+        'No se puede asignar un jefe a un proyecto cancelado.',
+      );
+    }
+    if (!(await this.repo.empleadoDisponible(empleadoId))) {
+      throw new NotFoundException('Empleado no encontrado o inactivo.');
+    }
+    if (proyecto.jefeProyectoId === empleadoId) {
+      throw new ConflictException(
+        'Este empleado ya es el jefe de este proyecto.',
+      );
+    }
+    return this.repo.asignarJefe(proyectoId, empleadoId);
+  }
+
+  async retirarJefe(proyectoId: number) {
+    const proyecto = await this.findOne(proyectoId);
+    if (!proyecto.jefeProyectoId) {
+      throw new NotFoundException('El proyecto no tiene un jefe asignado.');
+    }
+    return this.repo.retirarJefe(proyectoId);
   }
 }

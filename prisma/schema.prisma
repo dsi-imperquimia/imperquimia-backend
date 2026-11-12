@@ -38,8 +38,8 @@ model User {
   // ==========================================
   // RELACIÓN: USER -> EMPLEADO
   // ==========================================
-  // empleadoId Int?      @unique @map("id_empleado")
-  // empleado   Empleado? @relation(fields: [empleadoId], references: [id])
+  empleadoId Int?      @unique @map("empleado_id")
+  empleado   Empleado? @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
   movimientos      MovimientoHerramienta[]
   proyectosCreados Proyecto[]              @relation("ProyectoCreador")
 
@@ -61,13 +61,16 @@ model Empleado {
   // ==========================================
   // CONTRAPARTE: EMPLEADO -> USER
   // ==========================================
-  // user           User?
+  user User?
 
   cargo Cargo? @relation(fields: [cargoId], references: [id])
 
   // Relación Muchos a Muchos explícita para control total en auditorías
   habilidades HabilidadEmpleado[]
   proyectos   ProyectoEmpleado[]
+
+  // Proyectos donde este empleado es el jefe de proyecto (GPRCIMPER-23)
+  proyectosComoJefe Proyecto[] @relation("ProyectoJefe")
 
   @@map("mnt_empleados")
 }
@@ -335,6 +338,10 @@ model Proyecto {
   detalles    DetalleProyecto[]
   empleados   ProyectoEmpleado[]
 
+  // Jefe de proyecto: un único empleado responsable principal de la obra (GPRCIMPER-23)
+  jefeProyectoId Int?      @map("jefe_proyecto_id")
+  jefeProyecto   Empleado? @relation("ProyectoJefe", fields: [jefeProyectoId], references: [id], onDelete: SetNull)
+
   //Id de la cotizacion por si se crea desde una cotizacion existente pero puede ser null por si se crea sin cotizacion
   cotizacionId Int?        @unique @map("cotizacion_id")
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
@@ -371,8 +378,8 @@ model DetalleProyecto {
 }
 
 model ProyectoEmpleado {
-  // Indice unico parcial en SQL: empleado_id WHERE fecha_retiro IS NULL.
-  // Mantener la migracion 20260914030000_empleado_un_proyecto_activo.
+  // Un empleado puede tener varias asignaciones activas a la vez (una por
+  // proyecto distinto); @@id ya impide duplicar la fila proyecto+empleado.
   proyectoId      Int       @map("proyecto_id")
   empleadoId      Int       @map("empleado_id")
   proyecto        Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
