@@ -65,6 +65,29 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 28, name: 'HERRAMIENTA_DELETE', description: 'Permiso para eliminar herramientas' },
   ];
 
+  const alertasPermissions: PermissionType[] = [
+    {
+      id: 29,
+      name: 'ALERTA_CREATE',
+      description: 'Crear alertas para proyectos asignados',
+    },
+    {
+      id: 30,
+      name: 'ALERTA_READ',
+      description: 'Consultar la bandeja personal de alertas',
+    },
+    {
+      id: 31,
+      name: 'ALERTA_UPDATE',
+      description: 'Marcar alertas personales como atendidas',
+    },
+    {
+      id: 32,
+      name: 'ALERTA_CONFIGURE',
+      description: 'Administrar reglas automáticas de alertas',
+    },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
@@ -73,6 +96,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...proyectoPermissions,
     ...rolePermissions,
     ...herramientasPermissions,
+    ...alertasPermissions,
   ];
 
   for (const permission of permissions) {
@@ -102,12 +126,23 @@ export async function seedRoles(prisma: PrismaClient) {
     {
       id: 2,
       name: 'Jefe de proyecto',
-      permissionIds: [...empleadosPermissions, ...herramientasPermissions].map(
-        (p) => p.id,
-      ),
+      permissionIds: [
+        ...empleadosPermissions,
+        ...herramientasPermissions,
+        ...alertasPermissions.filter((p) =>
+          ['ALERTA_CREATE', 'ALERTA_READ'].includes(p.name),
+        ),
+      ].map((p) => p.id),
       description: 'Jefe de proyecto',
     },
-    { id: 3, name: 'Técnico', permissionIds: [], description: 'Técnico' },
+    {
+      id: 3,
+      name: 'Técnico',
+      permissionIds: alertasPermissions
+        .filter((p) => ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name))
+        .map((p) => p.id),
+      description: 'Técnico',
+    },
   ];
 
   for (const { permissionIds, ...role } of roles) {

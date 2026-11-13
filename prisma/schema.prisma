@@ -34,14 +34,18 @@ model User {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  role             Role?                   @relation(fields: [roleId], references: [id])
+  role                         Role?                   @relation(fields: [roleId], references: [id])
   // ==========================================
   // RELACIÓN: USER -> EMPLEADO
   // ==========================================
-  empleadoId Int?      @unique @map("empleado_id")
-  empleado   Empleado? @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
-  movimientos      MovimientoHerramienta[]
-  proyectosCreados Proyecto[]              @relation("ProyectoCreador")
+  empleadoId                   Int?                    @unique @map("empleado_id")
+  empleado                     Empleado?               @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
+  movimientos                  MovimientoHerramienta[]
+  proyectosCreados             Proyecto[]              @relation("ProyectoCreador")
+  configuracionesAlertaCreadas ConfiguracionAlerta[]   @relation("AlertaConfiguracionCreador")
+  alertasRecibidas             NotificacionAlerta[]    @relation("AlertaDestinatario")
+  alertasCreadas                NotificacionAlerta[]    @relation("AlertaCreador")
+  auditoriasAlerta             AuditoriaAlerta[]
 
   @@map("mnt_users")
 }
@@ -347,8 +351,10 @@ model Proyecto {
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
 
   // Relaciones inversas para consultar las herramientas actuales del proyecto y las que han tenido
-  herramientas Herramienta[]
-  movimientos  MovimientoHerramienta[]
+  herramientas          Herramienta[]
+  movimientos           MovimientoHerramienta[]
+  configuracionesAlerta ConfiguracionAlerta[]
+  notificacionesAlerta  NotificacionAlerta[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -375,6 +381,95 @@ model DetalleProyecto {
 
   @@unique([proyectoId, materialId])
   @@map("proy_detalle_proyectos")
+}
+
+enum CanalAlerta {
+  INTERNA
+}
+
+enum FrecuenciaAlerta {
+  UNA_VEZ
+  DIARIA
+  CADA_N_DIAS
+  DIAS_ESPECIFICOS
+}
+
+enum EstadoNotificacionAlerta {
+  NUEVA
+  VISUALIZADA
+  ATENDIDA
+}
+
+enum AccionAuditoriaAlerta {
+  CREADA
+  EDITADA
+  ELIMINADA
+}
+
+model ConfiguracionAlerta {
+  id              Int                  @id @default(autoincrement())
+  nombre          String
+  descripcion     String?              @db.Text
+  proyectoId      Int                  @map("proyecto_id")
+  proyecto        Proyecto             @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  diasAntes       Int                  @map("dias_antes")
+  canal           CanalAlerta          @default(INTERNA)
+  frecuencia      FrecuenciaAlerta     @default(UNA_VEZ)
+  cadaNDias       Int?                 @map("cada_n_dias")
+  diasEspecificos Int[]                @default([]) @map("dias_especificos")
+  activa          Boolean              @default(true)
+  creadoPorId     Int?                 @map("creado_por_id")
+  creadoPor       User?                @relation("AlertaConfiguracionCreador", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  notificaciones  NotificacionAlerta[]
+  auditorias      AuditoriaAlerta[]
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  deletedAt       DateTime?            @map("deleted_at")
+
+  @@index([proyectoId, activa])
+  @@map("mnt_alerta_configuraciones")
+}
+
+model NotificacionAlerta {
+  id                    Int                      @id @default(autoincrement())
+  reglaId               Int?                     @map("regla_id")
+  configuracionId       Int?                     @map("configuracion_id")
+  configuracion         ConfiguracionAlerta?     @relation(fields: [configuracionId], references: [id], onDelete: SetNull)
+  proyectoId            Int?                     @map("proyecto_id")
+  proyecto              Proyecto?                @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  destinatarioId        Int?                     @map("destinatario_id")
+  destinatario          User?                    @relation("AlertaDestinatario", fields: [destinatarioId], references: [id], onDelete: SetNull)
+  creadaPorId           Int?                     @map("creada_por_id")
+  creadaPor             User?                    @relation("AlertaCreador", fields: [creadaPorId], references: [id], onDelete: SetNull)
+  nombreConfiguracion   String                   @map("nombre_configuracion")
+  nombreProyecto        String                   @map("nombre_proyecto")
+  descripcion           String?                  @db.Text
+  estado                EstadoNotificacionAlerta @default(NUEVA)
+  primeraGeneracion     DateTime                 @default(now()) @map("primera_generacion")
+  ultimaGeneracion      DateTime                 @default(now()) @map("ultima_generacion")
+  ultimaFechaProgramada DateTime                 @map("ultima_fecha_programada") @db.Date
+  visualizadaAt         DateTime?                @map("visualizada_at")
+  atendidaAt            DateTime?                @map("atendida_at")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([reglaId, proyectoId, destinatarioId, ultimaFechaProgramada], map: "alert_notif_regla_proyecto_destino_fecha_uq")
+  @@index([destinatarioId, estado, ultimaGeneracion])
+  @@map("mnt_alerta_notificaciones")
+}
+
+model AuditoriaAlerta {
+  id              Int                   @id @default(autoincrement())
+  configuracionId Int?                  @map("configuracion_id")
+  configuracion   ConfiguracionAlerta?  @relation(fields: [configuracionId], references: [id], onDelete: SetNull)
+  usuarioId       Int?                  @map("usuario_id")
+  usuario         User?                 @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  accion          AccionAuditoriaAlerta
+  datos           String                @db.Text
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  @@index([configuracionId, createdAt])
+  @@map("mnt_alerta_auditoria")
 }
 
 model ProyectoEmpleado {
