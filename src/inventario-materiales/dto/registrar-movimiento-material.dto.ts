@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -22,12 +21,9 @@ export class RegistrarMovimientoMaterialDto {
   materialId!: number;
 
   @Type(() => Number)
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    { message: 'La cantidad admite hasta dos decimales.' },
-  )
-  @Min(0.01, { message: 'La cantidad debe ser mayor que cero.' })
-  @Max(9999999999.99, { message: 'La cantidad supera el máximo permitido.' })
+  @IsInt({ message: 'La cantidad debe ser un número entero.' })
+  @Min(1, { message: 'La cantidad debe ser mayor que cero.' })
+  @Max(9999999999, { message: 'La cantidad supera el máximo permitido.' })
   cantidad!: number;
 
   @IsEnum(MotivoMovimientoMaterial, { message: 'Selecciona un motivo válido.' })

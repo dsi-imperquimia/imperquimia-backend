@@ -34,7 +34,7 @@ describe('InventarioMaterialesService', () => {
     };
   }
 
-  it('registra una entrada externa con cantidad decimal y usuario de sesión', async () => {
+  it('registra una entrada externa con cantidad entera y usuario de sesión', async () => {
     const { repo, service } = setup();
     repo.findMovimientoByKey.mockResolvedValue(null);
     repo.registrar.mockResolvedValue(movimiento());
@@ -58,6 +58,56 @@ describe('InventarioMaterialesService', () => {
       }),
       9,
     );
+  });
+
+  it('rechaza cantidades con decimales', async () => {
+    const { repo, service } = setup();
+
+    await expect(
+      service.registrarEntrada(
+        {
+          claveOperacion: uuid,
+          materialId: 3,
+          cantidad: 1.5,
+          motivo: MotivoMovimientoMaterial.COMPRA,
+        },
+        9,
+      ),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'La cantidad debe ser un entero positivo.',
+    });
+    expect(repo.registrar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza el motivo otro para entradas y salidas nuevas', async () => {
+    const { repo, service } = setup();
+
+    await expect(
+      service.registrarEntrada(
+        {
+          claveOperacion: uuid,
+          materialId: 3,
+          cantidad: 1,
+          motivo: MotivoMovimientoMaterial.OTRO,
+          observacion: 'Ajuste',
+        },
+        9,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      service.registrarSalida(
+        {
+          claveOperacion: uuid,
+          materialId: 3,
+          cantidad: 1,
+          motivo: MotivoMovimientoMaterial.OTRO,
+          observacion: 'Ajuste',
+        },
+        9,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repo.registrar).not.toHaveBeenCalled();
   });
 
   it('rechaza una salida a proyecto cuando falta el proyecto', async () => {
@@ -133,6 +183,29 @@ describe('InventarioMaterialesService', () => {
       status: 409,
       message:
         'La cantidad supera el saldo disponible en el origen. Actualmente hay 12.5 unidades disponibles.',
+    });
+  });
+
+  it('rechaza movimientos de materiales desactivados', async () => {
+    const { repo, service } = setup();
+    repo.findMovimientoByKey.mockResolvedValue(null);
+    repo.registrar.mockRejectedValue(
+      new InventarioOperacionError('MATERIAL_INACTIVO'),
+    );
+
+    await expect(
+      service.registrarEntrada(
+        {
+          claveOperacion: uuid,
+          materialId: 3,
+          cantidad: 1,
+          motivo: MotivoMovimientoMaterial.COMPRA,
+        },
+        9,
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'No se pueden registrar movimientos de un material desactivado.',
     });
   });
 

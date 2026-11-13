@@ -47,6 +47,9 @@ export class InventarioMaterialesService {
     dto: RegistrarMovimientoMaterialDto,
     usuarioId: number,
   ) {
+    if (!Number.isInteger(dto.cantidad) || dto.cantidad < 1) {
+      throw new BadRequestException('La cantidad debe ser un entero positivo.');
+    }
     this.validarMotivo(direccion, dto);
     const existente = await this.repo.findMovimientoByKey(dto.claveOperacion);
     if (existente) return this.validarReintento(existente, direccion, dto);
@@ -89,12 +92,10 @@ export class InventarioMaterialesService {
         ? [
             MotivoMovimientoMaterial.COMPRA,
             MotivoMovimientoMaterial.DEVOLUCION_PROYECTO,
-            MotivoMovimientoMaterial.OTRO,
           ]
         : [
             MotivoMovimientoMaterial.USO_PROYECTO,
             MotivoMovimientoMaterial.VENTA,
-            MotivoMovimientoMaterial.OTRO,
           ];
     if (!permitidos.includes(dto.motivo)) {
       throw new BadRequestException(
@@ -115,16 +116,6 @@ export class InventarioMaterialesService {
       throw new BadRequestException(
         'El proyecto solo aplica a movimientos entre bodega y proyecto.',
       );
-    }
-    if (
-      dto.motivo === MotivoMovimientoMaterial.OTRO &&
-      !dto.observacion?.trim()
-    ) {
-      throw new BadRequestException({
-        message: { observacion: ['Describe el motivo del movimiento.'] },
-        error: 'Bad Request',
-        statusCode: 400,
-      });
     }
   }
 
@@ -165,6 +156,11 @@ export class InventarioMaterialesService {
   ): never {
     if (error === 'MATERIAL_NO_ENCONTRADO') {
       throw new NotFoundException('Material no encontrado.');
+    }
+    if (error === 'MATERIAL_INACTIVO') {
+      throw new ConflictException(
+        'No se pueden registrar movimientos de un material desactivado.',
+      );
     }
     if (error === 'PROYECTO_NO_ENCONTRADO') {
       throw new NotFoundException('Proyecto no encontrado.');

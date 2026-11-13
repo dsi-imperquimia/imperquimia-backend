@@ -136,10 +136,12 @@ export class InventarioMaterialesRepository {
     return this.prisma.$transaction(async (tx) => {
       const material = await tx.material.findUnique({
         where: { id: datos.materialId },
-        select: { id: true },
+        select: { id: true, estado: true },
       });
       if (!material)
         throw new InventarioOperacionError('MATERIAL_NO_ENCONTRADO');
+      if (!material.estado)
+        throw new InventarioOperacionError('MATERIAL_INACTIVO');
 
       const bodega = await tx.ubicacionMaterial.findUnique({
         where: { codigo: 'BODEGA-GENERAL' },

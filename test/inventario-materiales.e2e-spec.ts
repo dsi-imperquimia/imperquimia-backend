@@ -161,5 +161,23 @@ db('Inventario de materiales: integración PostgreSQL', () => {
         .find((item) => item.ubicacion.proyectoId === proyectoId)
         ?.cantidad.toString(),
     ).toBe('60');
+
+    await prisma.material.update({
+      where: { id: materialId },
+      data: { estado: false },
+    });
+    await expect(
+      service.registrarEntrada(
+        {
+          claveOperacion: randomUUID(),
+          materialId: materialId!,
+          cantidad: 1,
+          motivo: MotivoMovimientoMaterial.COMPRA,
+        },
+        userId!,
+      ),
+    ).rejects.toThrow(
+      'No se pueden registrar movimientos de un material desactivado.',
+    );
   });
 });
