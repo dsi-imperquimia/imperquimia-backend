@@ -24,28 +24,26 @@ model User {
   email    String @unique
   password String
 
-  cotizaciones               Cotizacion[] @relation("CotizacionCreador")
-  cotizacionesEstadoCambiado Cotizacion[] @relation("CotizacionCambioEstado")
-
-  roleId      Int?             @map("role_id")
-  permissions UserPermission[]
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
-
-  role                         Role?                   @relation(fields: [roleId], references: [id])
+  cotizaciones               Cotizacion[]           @relation("CotizacionCreador")
+  cotizacionesEstadoCambiado Cotizacion[]           @relation("CotizacionCambioEstado")
+  roleId                     Int?                   @map("role_id")
+  permissions                UserPermission[]
+  createdAt                  DateTime               @default(now()) @map("created_at")
+  updatedAt                  DateTime               @updatedAt @map("updated_at")
+  deletedAt                  DateTime?              @map("deleted_at")
+  role                       Role?                  @relation(fields: [roleId], references: [id])
   // ==========================================
   // RELACIÓN: USER -> EMPLEADO
   // ==========================================
-  empleadoId                   Int?                    @unique @map("empleado_id")
-  empleado                     Empleado?               @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
-  movimientos                  MovimientoHerramienta[]
-  proyectosCreados             Proyecto[]              @relation("ProyectoCreador")
-  configuracionesAlertaCreadas ConfiguracionAlerta[]   @relation("AlertaConfiguracionCreador")
-  alertasRecibidas             NotificacionAlerta[]    @relation("AlertaDestinatario")
-  alertasCreadas                NotificacionAlerta[]    @relation("AlertaCreador")
-  auditoriasAlerta             AuditoriaAlerta[]
+  empleadoId                 Int?                   @unique @map("empleado_id")
+  empleado                   Empleado?              @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
+  movimientos                MovimientoHerramienta[]
+  movimientosMaterial        MovimientoMaterial[]
+  proyectosCreados           Proyecto[]             @relation("ProyectoCreador")
+  configuracionesAlertaCreadas ConfiguracionAlerta[] @relation("AlertaConfiguracionCreador")
+  alertasRecibidas           NotificacionAlerta[]   @relation("AlertaDestinatario")
+  alertasCreadas             NotificacionAlerta[]   @relation("AlertaCreador")
+  auditoriasAlerta           AuditoriaAlerta[]
 
   @@map("mnt_users")
 }
@@ -219,6 +217,8 @@ model Material {
   detalles DetalleCotizacion[]
 
   detallesProyecto DetalleProyecto[]
+  existencias      ExistenciaMaterial[]
+  movimientos      MovimientoMaterial[]
 
   @@map("mnt_materiales")
 }
@@ -240,6 +240,80 @@ enum AreaMovimiento {
   PROYECTO
   TALLER
   DESECHO
+}
+
+enum TipoUbicacionMaterial {
+  BODEGA
+  PROYECTO
+}
+
+enum TipoMovimientoMaterial {
+  ENTRADA
+  SALIDA
+  TRASLADO
+}
+
+enum MotivoMovimientoMaterial {
+  COMPRA
+  DEVOLUCION_PROYECTO
+  USO_PROYECTO
+  VENTA
+  OTRO
+}
+
+model UbicacionMaterial {
+  id         Int                   @id @default(autoincrement())
+  codigo     String                @unique
+  nombre     String
+  tipo       TipoUbicacionMaterial
+  proyectoId Int?                  @unique @map("proyecto_id")
+  proyecto   Proyecto?             @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+
+  existencias        ExistenciaMaterial[]
+  movimientosOrigen  MovimientoMaterial[] @relation("MovimientoMaterialOrigen")
+  movimientosDestino MovimientoMaterial[] @relation("MovimientoMaterialDestino")
+
+  @@map("inv_ubicaciones_materiales")
+}
+
+model ExistenciaMaterial {
+  id          Int               @id @default(autoincrement())
+  materialId  Int               @map("material_id")
+  material    Material          @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  ubicacionId Int               @map("ubicacion_id")
+  ubicacion   UbicacionMaterial @relation(fields: [ubicacionId], references: [id], onDelete: Restrict)
+  cantidad    Decimal           @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@unique([materialId, ubicacionId])
+  @@index([ubicacionId])
+  @@map("inv_existencias_materiales")
+}
+
+model MovimientoMaterial {
+  id              Int                      @id @default(autoincrement())
+  claveOperacion  String                   @unique @map("clave_operacion") @db.Uuid
+  materialId      Int                      @map("material_id")
+  material        Material                 @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  cantidad        Decimal                  @db.Decimal(12, 2)
+  tipo            TipoMovimientoMaterial
+  motivo          MotivoMovimientoMaterial
+  origenId        Int?                     @map("origen_id")
+  origen          UbicacionMaterial?       @relation("MovimientoMaterialOrigen", fields: [origenId], references: [id], onDelete: Restrict)
+  destinoId       Int?                     @map("destino_id")
+  destino         UbicacionMaterial?       @relation("MovimientoMaterialDestino", fields: [destinoId], references: [id], onDelete: Restrict)
+  usuarioId       Int                      @map("usuario_id")
+  usuario         User                     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  observacion     String?                  @db.Text
+  fechaMovimiento DateTime                 @default(now()) @map("fecha_movimiento")
+
+  @@index([materialId, fechaMovimiento])
+  @@index([origenId])
+  @@index([destinoId])
+  @@map("inv_movimientos_materiales")
 }
 
 model Herramienta {
@@ -351,10 +425,11 @@ model Proyecto {
   cotizacion   Cotizacion? @relation(fields: [cotizacionId], references: [id])
 
   // Relaciones inversas para consultar las herramientas actuales del proyecto y las que han tenido
-  herramientas          Herramienta[]
-  movimientos           MovimientoHerramienta[]
-  configuracionesAlerta ConfiguracionAlerta[]
-  notificacionesAlerta  NotificacionAlerta[]
+  herramientas              Herramienta[]
+  movimientos               MovimientoHerramienta[]
+  ubicacionMaterial         UbicacionMaterial?
+  configuracionesAlerta     ConfiguracionAlerta[]
+  notificacionesAlerta      NotificacionAlerta[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

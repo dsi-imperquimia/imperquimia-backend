@@ -67,25 +67,32 @@ export async function seedRoles(prisma: PrismaClient) {
 
   const alertasPermissions: PermissionType[] = [
     {
-      id: 29,
+      id: 32,
       name: 'ALERTA_CREATE',
       description: 'Crear alertas para proyectos asignados',
     },
     {
-      id: 30,
+      id: 33,
       name: 'ALERTA_READ',
       description: 'Consultar la bandeja personal de alertas',
     },
     {
-      id: 31,
+      id: 34,
       name: 'ALERTA_UPDATE',
       description: 'Marcar alertas personales como atendidas',
     },
     {
-      id: 32,
+      id: 35,
       name: 'ALERTA_CONFIGURE',
       description: 'Administrar reglas automáticas de alertas',
     },
+  ];
+
+  // prettier-ignore
+  const inventarioMaterialesPermissions: PermissionType[] = [
+    { id: 29, name: 'INVENTARIO_MATERIAL_READ', description: 'Permiso para consultar existencias y movimientos de materiales' },
+    { id: 30, name: 'INVENTARIO_MATERIAL_ENTRY', description: 'Permiso para registrar entradas de materiales' },
+    { id: 31, name: 'INVENTARIO_MATERIAL_EXIT', description: 'Permiso para registrar salidas de materiales' },
   ];
 
   const permissions: PermissionType[] = [
@@ -97,6 +104,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...rolePermissions,
     ...herramientasPermissions,
     ...alertasPermissions,
+    ...inventarioMaterialesPermissions,
   ];
 
   for (const permission of permissions) {
@@ -130,7 +138,7 @@ export async function seedRoles(prisma: PrismaClient) {
         ...empleadosPermissions,
         ...herramientasPermissions,
         ...alertasPermissions.filter((p) =>
-          ['ALERTA_CREATE', 'ALERTA_READ'].includes(p.name),
+          ['ALERTA_CREATE', 'ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
         ),
       ].map((p) => p.id),
       description: 'Jefe de proyecto',
@@ -176,6 +184,7 @@ export async function seedRoles(prisma: PrismaClient) {
       false
     ) FROM "mnt_roles";
   `);
+
   await prisma.$executeRawUnsafe(`
     SELECT setval(
       pg_get_serial_sequence('"mnt_permissions"', 'id'),
