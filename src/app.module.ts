@@ -13,6 +13,7 @@ import { HerramientasModule } from './herramientas/herramientas.module';
 import { MaterialesModule } from './materiales/materiales.module';
 import { MovimientosModule } from './movimientos/movimientos.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
+import { InventarioMaterialesModule } from './inventario-materiales/inventario-materiales.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ProyectosModule } from './proyectos/proyectos.module';
     MaterialesModule,
     MovimientosModule,
     ProyectosModule,
+    InventarioMaterialesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
