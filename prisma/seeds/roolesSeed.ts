@@ -65,6 +65,36 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 28, name: 'HERRAMIENTA_DELETE', description: 'Permiso para eliminar herramientas' },
   ];
 
+  const alertasPermissions: PermissionType[] = [
+    {
+      id: 32,
+      name: 'ALERTA_CREATE',
+      description: 'Crear alertas para proyectos asignados',
+    },
+    {
+      id: 33,
+      name: 'ALERTA_READ',
+      description: 'Consultar la bandeja personal de alertas',
+    },
+    {
+      id: 34,
+      name: 'ALERTA_UPDATE',
+      description: 'Marcar alertas personales como atendidas',
+    },
+    {
+      id: 35,
+      name: 'ALERTA_CONFIGURE',
+      description: 'Administrar reglas automáticas de alertas',
+    },
+  ];
+
+  // prettier-ignore
+  const inventarioMaterialesPermissions: PermissionType[] = [
+    { id: 29, name: 'INVENTARIO_MATERIAL_READ', description: 'Permiso para consultar existencias y movimientos de materiales' },
+    { id: 30, name: 'INVENTARIO_MATERIAL_ENTRY', description: 'Permiso para registrar entradas de materiales' },
+    { id: 31, name: 'INVENTARIO_MATERIAL_EXIT', description: 'Permiso para registrar salidas de materiales' },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
@@ -73,6 +103,8 @@ export async function seedRoles(prisma: PrismaClient) {
     ...proyectoPermissions,
     ...rolePermissions,
     ...herramientasPermissions,
+    ...alertasPermissions,
+    ...inventarioMaterialesPermissions,
   ];
 
   for (const permission of permissions) {
@@ -102,12 +134,23 @@ export async function seedRoles(prisma: PrismaClient) {
     {
       id: 2,
       name: 'Jefe de proyecto',
-      permissionIds: [...empleadosPermissions, ...herramientasPermissions].map(
-        (p) => p.id,
-      ),
+      permissionIds: [
+        ...empleadosPermissions,
+        ...herramientasPermissions,
+        ...alertasPermissions.filter((p) =>
+          ['ALERTA_CREATE', 'ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
+        ),
+      ].map((p) => p.id),
       description: 'Jefe de proyecto',
     },
-    { id: 3, name: 'Técnico', permissionIds: [], description: 'Técnico' },
+    {
+      id: 3,
+      name: 'Técnico',
+      permissionIds: alertasPermissions
+        .filter((p) => ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name))
+        .map((p) => p.id),
+      description: 'Técnico',
+    },
   ];
 
   for (const { permissionIds, ...role } of roles) {
@@ -141,6 +184,7 @@ export async function seedRoles(prisma: PrismaClient) {
       false
     ) FROM "mnt_roles";
   `);
+
   await prisma.$executeRawUnsafe(`
     SELECT setval(
       pg_get_serial_sequence('"mnt_permissions"', 'id'),

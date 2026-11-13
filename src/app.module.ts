@@ -14,6 +14,8 @@ import { HerramientasModule } from './herramientas/herramientas.module';
 import { MaterialesModule } from './materiales/materiales.module';
 import { MovimientosModule } from './movimientos/movimientos.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
+import { AlertasModule } from './alertas/alertas.module';
+import { InventarioMaterialesModule } from './inventario-materiales/inventario-materiales.module';
 import { MailModule } from './common/mail/mail.module';
 
 @Module({
@@ -32,6 +34,8 @@ import { MailModule } from './common/mail/mail.module';
     MaterialesModule,
     MovimientosModule,
     ProyectosModule,
+    AlertasModule,
+    InventarioMaterialesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
