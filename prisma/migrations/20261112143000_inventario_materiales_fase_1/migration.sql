@@ -10,7 +10,7 @@ CREATE TABLE "inv_ubicaciones_materiales" (
   "tipo" "TipoUbicacionMaterial" NOT NULL,
   "proyecto_id" INTEGER,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "inv_ubicaciones_materiales_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "inv_ubicaciones_materiales_tipo_proyecto_check" CHECK (
     ("tipo" = 'BODEGA' AND "proyecto_id" IS NULL) OR
@@ -24,7 +24,7 @@ CREATE TABLE "inv_existencias_materiales" (
   "ubicacion_id" INTEGER NOT NULL,
   "cantidad" DECIMAL(12,2) NOT NULL DEFAULT 0,
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updated_at" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "inv_existencias_materiales_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "inv_existencias_materiales_cantidad_check" CHECK ("cantidad" >= 0)
 );
