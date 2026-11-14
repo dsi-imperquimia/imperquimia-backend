@@ -4,7 +4,13 @@ import { CreateProyectoDto } from './create-proyecto.dto';
 
 // Estados que se pueden asignar desde la edición general del proyecto.
 // CANCELADO solo se asigna a través del flujo dedicado de cancelación (GPRCIMPER-28).
-export const ESTADOS_EDITABLES = ['ACTIVO', 'EN_PAUSA'] as const;
+export const ESTADOS_EDITABLES = [
+  'ACTIVO',
+  'EN_PAUSA',
+  'FINALIZADO',
+  'PAGADO',
+  'GARANTIA',
+] as const;
 export const TIPOS_OBRA = [
   'RESIDENCIAL',
   'COMERCIAL',
