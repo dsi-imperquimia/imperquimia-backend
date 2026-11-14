@@ -22,6 +22,27 @@ export class ActividadesDiariasService {
     return this.repo.findProyectosDisponibles(usuario.empleadoId, esAdmin);
   }
 
+  async findActividades(usuarioId: number, proyectoId?: number) {
+    const usuario = await this.repo.findUsuario(usuarioId);
+    if (!usuario) {
+      throw new ForbiddenException('Usuario no disponible.');
+    }
+    if (!proyectoId || !Number.isInteger(proyectoId) || proyectoId < 1) {
+      throw new BadRequestException('Selecciona un proyecto válido.');
+    }
+    const proyecto = await this.repo.findProyecto(proyectoId);
+    if (!proyecto) {
+      throw new NotFoundException('Proyecto no encontrado.');
+    }
+    const esAdmin = usuario.role?.name.toLocaleLowerCase() === 'administrador';
+    if (!esAdmin && proyecto.jefeProyectoId !== usuario.empleadoId) {
+      throw new ForbiddenException(
+        'Solo el jefe de proyecto asignado puede consultar sus actividades.',
+      );
+    }
+    return this.repo.findPorProyecto(proyecto.id);
+  }
+
   async registrar(dto: CrearActividadDiariaDto, usuarioId: number) {
     const descripcion = dto.descripcion?.trim() ?? '';
     if (!descripcion) {
@@ -68,13 +89,10 @@ export class ActividadesDiariasService {
       const empleadoId = usuario.empleadoId;
       const esJefe =
         Boolean(empleadoId) && proyecto.jefeProyectoId === empleadoId;
-      const asignado =
-        esJefe ||
-        (empleadoId
-          ? await this.repo.existeAsignacionActiva(proyecto.id, empleadoId)
-          : false);
-      if (!asignado) {
-        throw new ForbiddenException('No estás asignado a este proyecto.');
+      if (!esJefe) {
+        throw new ForbiddenException(
+          'Solo el jefe de proyecto asignado puede registrar actividades diarias.',
+        );
       }
     }
 

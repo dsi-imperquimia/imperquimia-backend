@@ -70,30 +70,26 @@ export class ActividadesDiariasRepository {
       where: {
         deletedAt: null,
         estado: 'ACTIVO',
-        ...(esAdmin
-          ? {}
-          : {
-              OR: [
-                { jefeProyectoId: empleadoId },
-                {
-                  empleados: {
-                    some: {
-                      empleadoId: empleadoId!,
-                      fechaRetiro: null,
-                      empleado: { activo: true, deletedAt: null },
-                    },
-                  },
-                },
-              ],
-            }),
+        ...(esAdmin ? {} : { jefeProyectoId: empleadoId }),
       },
       select: {
         id: true,
         nombre: true,
+        cliente: true,
         ubicacion: true,
         estado: true,
+        fechaInicio: true,
+        fechaFin: true,
       },
       orderBy: { nombre: 'asc' },
+    });
+  }
+
+  findPorProyecto(proyectoId: number) {
+    return this.prisma.actividadDiaria.findMany({
+      where: { proyectoId, deletedAt: null },
+      include: includeActividad,
+      orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
     });
   }
 

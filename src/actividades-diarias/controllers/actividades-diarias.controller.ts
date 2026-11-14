@@ -1,6 +1,14 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { JwtPayload } from '@/common/decorators/current-user.decorator';
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  ParseIntPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CrearActividadDiariaDto } from '../dto/crear-actividad-diaria.dto';
 import {
   ActividadesPermissions,
@@ -14,9 +22,19 @@ export class ActividadesDiariasController {
   constructor(private readonly service: ActividadesDiariasService) {}
 
   @Get('proyectos-disponibles')
-  @ActividadesPermissions('ACTIVIDAD_CREATE')
+  @ActividadesPermissions('ACTIVIDAD_READ', 'ACTIVIDAD_CREATE')
   findProyectosDisponibles(@CurrentUser() user: JwtPayload) {
     return this.service.findProyectosDisponibles(user.sub);
+  }
+
+  @Get()
+  @ActividadesPermissions('ACTIVIDAD_READ', 'ACTIVIDAD_CREATE')
+  findActividades(
+    @Query('proyectoId', new ParseIntPipe({ optional: true }))
+    proyectoId: number | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.findActividades(user.sub, proyectoId);
   }
 
   @Post()

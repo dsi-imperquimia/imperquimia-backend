@@ -31,6 +31,7 @@ describe('ActividadesDiariasService', () => {
       findProyecto: jest.fn(),
       existeAsignacionActiva: jest.fn(),
       findProyectosDisponibles: jest.fn(),
+      findPorProyecto: jest.fn(),
       crear: jest.fn(),
     };
     return {
@@ -39,21 +40,39 @@ describe('ActividadesDiariasService', () => {
     };
   }
 
-  it('registra una actividad diaria para un técnico asignado al proyecto activo', async () => {
+  it('lista únicamente los proyectos activos donde el usuario es jefe de proyecto (GPRCIMPER-29)', async () => {
+    const { repo, service } = setup();
+    repo.findUsuario.mockResolvedValue({
+      id: 5,
+      empleadoId: 7,
+      role: { name: 'Jefe de proyecto' },
+    });
+    repo.findProyectosDisponibles.mockResolvedValue([
+      { id: 10, nombre: 'Edificio Central', estado: 'ACTIVO' },
+    ]);
+
+    const proyectos = await service.findProyectosDisponibles(5);
+
+    expect(proyectos).toEqual([
+      { id: 10, nombre: 'Edificio Central', estado: 'ACTIVO' },
+    ]);
+    expect(repo.findProyectosDisponibles).toHaveBeenCalledWith(7, false);
+  });
+
+  it('registra una actividad diaria para el jefe de proyecto asignado al proyecto activo', async () => {
     const { repo, service } = setup();
     repo.findByClave.mockResolvedValue(null);
     repo.findUsuario.mockResolvedValue({
       id: 5,
       empleadoId: 7,
-      role: { name: 'Técnico' },
+      role: { name: 'Jefe de proyecto' },
     });
     repo.findProyecto.mockResolvedValue({
       id: 10,
       nombre: 'Edificio Central',
       estado: 'ACTIVO',
-      jefeProyectoId: 2,
+      jefeProyectoId: 7,
     });
-    repo.existeAsignacionActiva.mockResolvedValue(true);
     repo.crear.mockResolvedValue(actividadMock());
 
     const resultado = await service.registrar(
@@ -159,13 +178,13 @@ describe('ActividadesDiariasService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rechaza con 403 cuando el usuario no es administrador ni está asignado al proyecto', async () => {
+  it('rechaza con 403 cuando el usuario no es administrador ni jefe de proyecto asignado', async () => {
     const { repo, service } = setup();
     repo.findByClave.mockResolvedValue(null);
     repo.findUsuario.mockResolvedValue({
       id: 5,
       empleadoId: 7,
-      role: { name: 'Técnico' },
+      role: { name: 'Jefe de proyecto' },
     });
     repo.findProyecto.mockResolvedValue({
       id: 10,
@@ -173,7 +192,6 @@ describe('ActividadesDiariasService', () => {
       estado: 'ACTIVO',
       jefeProyectoId: 2,
     });
-    repo.existeAsignacionActiva.mockResolvedValue(false);
 
     await expect(
       service.registrar(
