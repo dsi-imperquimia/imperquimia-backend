@@ -1,17 +1,17 @@
+import { MailService } from '@/common/mail/mail.service';
+import { Prisma } from '@gen/prisma/client';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@gen/prisma/client';
-import { ProyectoRepository } from '../repository/proyectoRepository';
 import {
   CreateProyectoDto,
   DetalleProyectoDto,
 } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
-import { MailService } from '@/common/mail/mail.service';
+import { ProyectoRepository } from '../repository/proyectoRepository';
 
 const MAX_IMPORTE = new Prisma.Decimal('99999999.99');
 
@@ -171,6 +171,9 @@ export class ProyectoService {
     if (actual.estado === 'CANCELADO') {
       throw new ConflictException('No se puede editar un proyecto cancelado.');
     }
+    if (dto.estado === 'CANCELADO') {
+      this.validarCancelable(actual);
+    }
     const datos = this.datosProyecto({
       nombre: dto.nombre ?? actual.nombre,
       cliente: dto.cliente === undefined ? (actual.cliente ?? '') : dto.cliente,
@@ -191,18 +194,32 @@ export class ProyectoService {
           ? (actual.fechaFin?.toISOString().slice(0, 10) ?? '')
           : dto.fechaFin,
     });
-    if (dto.detalles === undefined) return this.repo.update(id, datos);
+    const camposEditables = {
+      ...(dto.estado !== undefined && { estado: dto.estado }),
+      ...(dto.tipoObra !== undefined && { tipoObra: dto.tipoObra }),
+      ...(dto.presupuesto !== undefined && { presupuesto: dto.presupuesto }),
+    };
+
+    if (dto.detalles === undefined)
+      return this.repo.update(id, { ...datos, ...camposEditables });
     if (dto.detalles === null)
       throw new BadRequestException(
         'Los materiales deben enviarse en un arreglo.',
       );
-    const presupuesto = await this.presupuesto(dto.detalles, actual.detalles);
+    const presupuestoMateriales = await this.presupuesto(
+      dto.detalles,
+      actual.detalles,
+    );
     return this.repo.update(id, {
       ...datos,
-      subTotal: presupuesto.subTotal,
-      totalIva: presupuesto.totalIva,
-      total: presupuesto.total,
-      detalles: { deleteMany: {}, create: presupuesto.detalles.create },
+      ...camposEditables,
+      subTotal: presupuestoMateriales.subTotal,
+      totalIva: presupuestoMateriales.totalIva,
+      total: presupuestoMateriales.total,
+      detalles: {
+        deleteMany: {},
+        create: presupuestoMateriales.detalles.create,
+      },
     });
   }
 
@@ -218,40 +235,38 @@ export class ProyectoService {
     return proyecto;
   }
 
-  async cancelar(id: number, motivo: string) {
+  // Compartida entre cancelar() y update() (cuando el estado destino es
+  // CANCELADO): ninguna de las dos vías debe poder cancelar un proyecto que
+  // todavía tiene empleados o herramientas asignados.
+  private validarCancelable(proyecto: {
+    id: number;
+    empleados: { fechaRetiro: Date | null }[];
+    herramientas: unknown[];
+  }) {
+    if (
+      proyecto.empleados.some((asignacion) => asignacion.fechaRetiro === null)
+    ) {
+      throw new ConflictException(
+        'Retira los empleados asignados antes de cancelar el proyecto.',
+      );
+    }
+
+    if (proyecto.herramientas.length > 0) {
+      throw new BadRequestException(
+        `No se puede cancelar el proyecto #${proyecto.id} porque tiene ${proyecto.herramientas.length} herramienta(s) asignada(s)`,
+      );
+    }
+  }
+
+  async cancelar(id: number) {
     const proyecto = await this.findOne(id);
 
     if (proyecto.estado === 'CANCELADO') {
       throw new ConflictException('El proyecto ya está cancelado.');
     }
+    this.validarCancelable(proyecto);
 
-    const cancelado = await this.repo.cancelar(id, motivo);
-    await this.notificarCancelacion(proyecto.nombre, motivo, id);
-    return cancelado;
-  }
-
-  // Avisa por correo a los empleados con asignación vigente al momento de
-  // cancelar (GPRCIMPER-28). El envío no bloquea la cancelación si falla.
-  private async notificarCancelacion(
-    nombreProyecto: string,
-    motivo: string,
-    proyectoId: number,
-  ) {
-    const asignaciones = await this.repo.findCorreosEmpleadosActivos(
-      proyectoId,
-    );
-    const correos = asignaciones
-      .map((asignacion) => asignacion.empleado.user?.email)
-      .filter((email): email is string => Boolean(email));
-    await Promise.all(
-      correos.map((email) =>
-        this.mail.enviar({
-          to: email,
-          subject: `Proyecto cancelado: ${nombreProyecto}`,
-          text: `El proyecto "${nombreProyecto}" fue cancelado.\nMotivo: ${motivo}`,
-        }),
-      ),
-    );
+    return this.repo.cancelar(id);
   }
 
   async asignarEmpleado(proyectoId: number, empleadoId: number) {

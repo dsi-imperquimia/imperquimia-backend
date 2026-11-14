@@ -26,7 +26,23 @@ export class MaterialRepository {
   }
 
   create(data: Prisma.MaterialCreateInput) {
-    return this.prisma.material.create({ data });
+    return this.prisma.$transaction(async (tx) => {
+      const material = await tx.material.create({ data });
+      const bodega = await tx.ubicacionMaterial.findUnique({
+        where: { codigo: 'BODEGA-GENERAL' },
+        select: { id: true },
+      });
+      if (bodega) {
+        await tx.existenciaMaterial.create({
+          data: {
+            materialId: material.id,
+            ubicacionId: bodega.id,
+            cantidad: 0,
+          },
+        });
+      }
+      return material;
+    });
   }
 
   update(id: number, data: Prisma.MaterialUncheckedUpdateInput) {
