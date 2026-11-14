@@ -39,6 +39,7 @@ describe('ActividadesDiariasService', () => {
       findProyecto: jest.fn(),
       findProyectosDisponibles: jest.fn(),
       findPorProyecto: jest.fn(),
+      findAccesibles: jest.fn(),
       crear: jest.fn(),
       actualizar: jest.fn(),
     };
@@ -65,6 +66,29 @@ describe('ActividadesDiariasService', () => {
       { id: 10, nombre: 'Edificio Central', estado: 'ACTIVO' },
     ]);
     expect(repo.findProyectosDisponibles).toHaveBeenCalledWith(7, false);
+  });
+
+  it('lista todas las actividades accesibles cuando no se filtra por proyecto', async () => {
+    const { repo, service } = setup();
+    repo.findUsuario.mockResolvedValue({
+      id: 5,
+      empleadoId: 7,
+      role: { name: 'Jefe de proyecto' },
+    });
+    repo.findAccesibles.mockResolvedValue([actividadMock()]);
+
+    const lista = await service.findActividades(5);
+
+    expect(lista).toHaveLength(1);
+    expect(repo.findAccesibles).toHaveBeenCalledWith(7, false);
+
+    repo.findUsuario.mockResolvedValue({
+      id: 1,
+      empleadoId: null,
+      role: { name: 'Administrador' },
+    });
+    await service.findActividades(1);
+    expect(repo.findAccesibles).toHaveBeenLastCalledWith(null, true);
   });
 
   it('registra una actividad diaria para el jefe de proyecto asignado al proyecto activo', async () => {

@@ -31,14 +31,17 @@ export class ActividadesDiariasService {
     if (!usuario) {
       throw new ForbiddenException('Usuario no disponible.');
     }
-    if (!proyectoId || !Number.isInteger(proyectoId) || proyectoId < 1) {
+    const esAdmin = this.esAdministrador(usuario.role?.name);
+    if (proyectoId === undefined) {
+      return this.repo.findAccesibles(usuario.empleadoId, esAdmin);
+    }
+    if (!Number.isInteger(proyectoId) || proyectoId < 1) {
       throw new BadRequestException('Selecciona un proyecto válido.');
     }
     const proyecto = await this.repo.findProyecto(proyectoId);
     if (!proyecto) {
       throw new NotFoundException('Proyecto no encontrado.');
     }
-    const esAdmin = this.esAdministrador(usuario.role?.name);
     if (!esAdmin && proyecto.jefeProyectoId !== usuario.empleadoId) {
       throw new ForbiddenException(
         'Solo el jefe de proyecto asignado puede consultar sus actividades.',

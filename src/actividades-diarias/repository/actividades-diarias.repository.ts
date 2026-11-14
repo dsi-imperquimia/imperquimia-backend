@@ -95,6 +95,22 @@ export class ActividadesDiariasRepository {
     });
   }
 
+  findAccesibles(empleadoId: number | null, esAdmin: boolean) {
+    if (!esAdmin && !empleadoId) return Promise.resolve([]);
+    return this.prisma.actividadDiaria.findMany({
+      where: {
+        deletedAt: null,
+        proyecto: {
+          deletedAt: null,
+          estado: 'ACTIVO',
+          ...(esAdmin ? {} : { jefeProyectoId: empleadoId }),
+        },
+      },
+      include: includeActividad,
+      orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
   crear(datos: DatosCrearActividad) {
     return this.prisma.actividadDiaria.create({
       data: {
