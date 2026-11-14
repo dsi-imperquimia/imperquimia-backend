@@ -66,19 +66,6 @@ export class ActividadesDiariasRepository {
     });
   }
 
-  async existeAsignacionActiva(proyectoId: number, empleadoId: number) {
-    const asignacion = await this.prisma.proyectoEmpleado.findFirst({
-      where: {
-        proyectoId,
-        empleadoId,
-        fechaRetiro: null,
-        empleado: { activo: true, deletedAt: null },
-      },
-      select: { proyectoId: true },
-    });
-    return Boolean(asignacion);
-  }
-
   findProyectosDisponibles(empleadoId: number | null, esAdmin: boolean) {
     if (!esAdmin && !empleadoId) return Promise.resolve([]);
     return this.prisma.proyecto.findMany({

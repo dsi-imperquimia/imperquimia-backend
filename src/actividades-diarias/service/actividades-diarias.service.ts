@@ -61,8 +61,8 @@ export class ActividadesDiariasService {
     const esAdmin = this.esAdministrador(usuario.role?.name);
     if (
       !esAdmin &&
-      actividad.proyecto.jefeProyectoId !== usuario.empleadoId &&
-      actividad.usuarioId !== usuario.id
+      (!usuario.empleadoId ||
+        actividad.proyecto.jefeProyectoId !== usuario.empleadoId)
     ) {
       throw new ForbiddenException(
         'Solo el jefe de proyecto asignado puede consultar esta actividad.',
@@ -189,7 +189,7 @@ export class ActividadesDiariasService {
       const esJefe =
         Boolean(usuario.empleadoId) &&
         actividad.proyecto.jefeProyectoId === usuario.empleadoId;
-      if (!esJefe && actividad.usuarioId !== usuario.id) {
+      if (!esJefe) {
         throw new ForbiddenException(
           'Solo el jefe de proyecto asignado puede editar este registro.',
         );

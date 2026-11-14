@@ -159,7 +159,6 @@ export async function seedRoles(prisma: PrismaClient) {
         ...alertasPermissions.filter((p) =>
           ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
         ),
-        ...actividadesDiariasPermissions,
       ].map((p) => p.id),
       description: 'Técnico',
     },

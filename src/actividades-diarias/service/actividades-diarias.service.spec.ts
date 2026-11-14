@@ -37,7 +37,6 @@ describe('ActividadesDiariasService', () => {
       findByClave: jest.fn(),
       findUsuario: jest.fn(),
       findProyecto: jest.fn(),
-      existeAsignacionActiva: jest.fn(),
       findProyectosDisponibles: jest.fn(),
       findPorProyecto: jest.fn(),
       crear: jest.fn(),
@@ -245,7 +244,7 @@ describe('ActividadesDiariasService', () => {
     );
 
     expect(resultado.repetido).toBe(false);
-    expect(repo.existeAsignacionActiva).not.toHaveBeenCalled();
+    expect(repo.crear).toHaveBeenCalled();
   });
 
   it('rechaza fechas futuras', async () => {
@@ -361,6 +360,21 @@ describe('ActividadesDiariasService', () => {
           },
           5,
         ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.actualizar).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con 403 a un jefe de proyecto que no es el asignado al proyecto del registro', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue({
+        id: 9,
+        empleadoId: 99,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findById.mockResolvedValue(actividadMock());
+
+      await expect(
+        service.actualizar(1, { descripcion: 'Edición no autorizada' }, 9),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(repo.actualizar).not.toHaveBeenCalled();
     });
