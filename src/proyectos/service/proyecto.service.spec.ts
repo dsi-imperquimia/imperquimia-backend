@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@gen/prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -27,6 +27,10 @@ function setup() {
     findUnique: jest.fn(),
     cancelar: jest.fn().mockResolvedValue({ id: 9, estado: 'CANCELADO', deletedAt: null }),
     findCorreosEmpleadosActivos: jest.fn().mockResolvedValue([]),
+    asignacionVigente: jest.fn(),
+    reasignarEmpleado: jest.fn().mockResolvedValue(undefined),
+    findJefeProyecto: jest.fn().mockResolvedValue(null),
+    crearNotificacionReasignacion: jest.fn().mockResolvedValue(undefined),
   };
   const mail = { enviar: jest.fn().mockResolvedValue(undefined) };
   return {
@@ -235,5 +239,65 @@ describe('ProyectoService: cancelar desde la edición general', () => {
     expect(actualizado.estado).toBe('CANCELADO');
     expect(actualizado.motivoCancelacion).toBe('Fin de obra');
     expect(mail.enviar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ProyectoService: reasignar empleado entre proyectos', () => {
+  function proyecto(id: number, overrides: Record<string, unknown> = {}) {
+    return { id, nombre: `Obra ${id}`, estado: 'ACTIVO', empleados: [], herramientas: [], detalles: [], ...overrides };
+  }
+
+  it('exige que origen y destino sean proyectos distintos', async () => {
+    const { repo, service } = setup();
+    await expect(service.reasignarEmpleado(9, 9, 1, 7)).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('impide reasignar a un proyecto cancelado', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockImplementation((id: number) =>
+      Promise.resolve(id === 10 ? proyecto(10, { estado: 'CANCELADO' }) : proyecto(9)),
+    );
+    await expect(service.reasignarEmpleado(9, 10, 1, 7)).rejects.toBeInstanceOf(ConflictException);
+    expect(repo.reasignarEmpleado).not.toHaveBeenCalled();
+  });
+
+  it('exige que el empleado tenga una asignación vigente en el origen', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockImplementation((id: number) => Promise.resolve(proyecto(id)));
+    repo.asignacionVigente.mockResolvedValue(null);
+    await expect(service.reasignarEmpleado(9, 10, 1, 7)).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.reasignarEmpleado).not.toHaveBeenCalled();
+  });
+
+  it('reasigna, notifica por correo y por sistema al jefe del proyecto de origen', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockImplementation((id: number) => Promise.resolve(proyecto(id)));
+    repo.asignacionVigente.mockResolvedValue({ empleado: { nombreCompleto: 'Ana' } });
+    repo.findJefeProyecto.mockResolvedValue({ jefeProyecto: { user: { id: 3, email: 'jefe@test.com' } } });
+
+    const resultado = await service.reasignarEmpleado(9, 10, 1, 7);
+
+    expect(repo.reasignarEmpleado).toHaveBeenCalledWith(9, 10, 1);
+    expect(mail.enviar).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'jefe@test.com' }),
+    );
+    expect(repo.crearNotificacionReasignacion).toHaveBeenCalledWith(
+      expect.objectContaining({ proyectoId: 9, destinatarioId: 3, creadaPorId: 7 }),
+    );
+    expect(resultado).toEqual({ message: 'Empleado reasignado correctamente.' });
+  });
+
+  it('no falla si el proyecto de origen no tiene jefe asignado', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockImplementation((id: number) => Promise.resolve(proyecto(id)));
+    repo.asignacionVigente.mockResolvedValue({ empleado: { nombreCompleto: 'Ana' } });
+    repo.findJefeProyecto.mockResolvedValue(null);
+
+    await expect(service.reasignarEmpleado(9, 10, 1, 7)).resolves.toEqual({
+      message: 'Empleado reasignado correctamente.',
+    });
+    expect(mail.enviar).not.toHaveBeenCalled();
+    expect(repo.crearNotificacionReasignacion).not.toHaveBeenCalled();
   });
 });

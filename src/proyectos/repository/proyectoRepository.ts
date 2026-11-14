@@ -110,4 +110,63 @@ export class ProyectoRepository {
       },
     });
   }
+
+  asignacionVigente(proyectoId: number, empleadoId: number) {
+    return this.prisma.proyectoEmpleado.findFirst({
+      where: { proyectoId, empleadoId, fechaRetiro: null },
+      select: { empleado: { select: { nombreCompleto: true } } },
+    });
+  }
+
+  // Retira del origen y asigna al destino en una sola transacción (GPRCIMPER-84).
+  reasignarEmpleado(origenId: number, destinoId: number, empleadoId: number) {
+    return this.prisma.$transaction([
+      this.prisma.proyectoEmpleado.updateMany({
+        where: { proyectoId: origenId, empleadoId, fechaRetiro: null },
+        data: { fechaRetiro: new Date() },
+      }),
+      this.prisma.proyectoEmpleado.upsert({
+        where: { proyectoId_empleadoId: { proyectoId: destinoId, empleadoId } },
+        create: { proyectoId: destinoId, empleadoId },
+        update: { fechaAsignacion: new Date(), fechaRetiro: null },
+      }),
+    ]);
+  }
+
+  // Jefe del proyecto de origen y su correo, para notificarle la reasignación (GPRCIMPER-84).
+  findJefeProyecto(proyectoId: number) {
+    return this.prisma.proyecto.findFirst({
+      where: { id: proyectoId, deletedAt: null },
+      select: {
+        jefeProyecto: {
+          select: { user: { select: { id: true, email: true } } },
+        },
+      },
+    });
+  }
+
+  crearNotificacionReasignacion(data: {
+    proyectoId: number;
+    destinatarioId: number;
+    creadaPorId: number;
+    nombreProyecto: string;
+    descripcion: string;
+  }) {
+    const ahora = new Date();
+    return this.prisma.notificacionAlerta.create({
+      data: {
+        reglaId: null,
+        configuracionId: null,
+        proyectoId: data.proyectoId,
+        destinatarioId: data.destinatarioId,
+        creadaPorId: data.creadaPorId,
+        nombreConfiguracion: 'Reasignación de técnico',
+        nombreProyecto: data.nombreProyecto,
+        descripcion: data.descripcion,
+        primeraGeneracion: ahora,
+        ultimaGeneracion: ahora,
+        ultimaFechaProgramada: ahora,
+      },
+    });
+  }
 }
