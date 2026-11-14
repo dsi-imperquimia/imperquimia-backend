@@ -159,6 +159,9 @@ export class InventarioMaterialesRepository {
         if (proyecto.estado !== 'ACTIVO') {
           throw new InventarioOperacionError('PROYECTO_NO_ACTIVO');
         }
+        // Invariante tipo/proyecto (antes un CHECK en la BD, ver nota más
+        // abajo): toda ubicación PROYECTO siempre lleva su proyectoId, y
+        // nunca comparte código con BODEGA-GENERAL ni con otro proyecto.
         ubicacionProyecto = await tx.ubicacionMaterial.upsert({
           where: { codigo: `PROYECTO-${proyecto.id}` },
           update: { nombre: proyecto.nombre, proyectoId: proyecto.id },
@@ -172,6 +175,11 @@ export class InventarioMaterialesRepository {
         });
       }
 
+      // origenId/destinoId según la dirección: ENTRADA y SALIDA siempre
+      // dejan exactamente uno en null, y los traslados usan bodega + la
+      // ubicación del proyecto (dos filas distintas por construcción), así
+      // que "al menos uno" y "origen != destino" quedan garantizados aquí
+      // sin necesidad de un CHECK en la base.
       const esTraslado =
         datos.motivo === MotivoMovimientoMaterial.USO_PROYECTO ||
         datos.motivo === MotivoMovimientoMaterial.DEVOLUCION_PROYECTO;
@@ -207,6 +215,9 @@ export class InventarioMaterialesRepository {
       });
 
       if (origenId !== null) {
+        // UPDATE ... WHERE cantidad >= X atómico: evita saldo negativo aun
+        // con salidas concurrentes, sin depender de un CHECK en la base
+        // (si no alcanza, count queda en 0 y se lanza SALDO_INSUFICIENTE).
         const descontado = await tx.existenciaMaterial.updateMany({
           where: {
             materialId: datos.materialId,

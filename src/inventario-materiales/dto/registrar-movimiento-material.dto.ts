@@ -20,6 +20,8 @@ export class RegistrarMovimientoMaterialDto {
   @Min(1, { message: 'Selecciona un material válido.' })
   materialId!: number;
 
+  // @Min(1) reemplaza al CHECK (cantidad > 0) que tenía la migración: se
+  // valida aquí, antes de llegar a la base.
   @Type(() => Number)
   @IsInt({ message: 'La cantidad debe ser un número entero.' })
   @Min(1, { message: 'La cantidad debe ser mayor que cero.' })
