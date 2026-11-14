@@ -11,8 +11,16 @@ export interface DatosCrearActividad {
   observaciones?: string;
 }
 
+export interface DatosActualizarActividad {
+  fecha?: Date;
+  descripcion: string;
+  observaciones: string | null;
+}
+
 const includeActividad = {
-  proyecto: { select: { id: true, nombre: true, estado: true } },
+  proyecto: {
+    select: { id: true, nombre: true, estado: true, jefeProyectoId: true },
+  },
   usuario: { select: { id: true, name: true, lastName: true } },
   empleado: { select: { id: true, nombreCompleto: true } },
 };
@@ -20,6 +28,13 @@ const includeActividad = {
 @Injectable()
 export class ActividadesDiariasRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  findById(id: number) {
+    return this.prisma.actividadDiaria.findFirst({
+      where: { id, deletedAt: null },
+      include: includeActividad,
+    });
+  }
 
   findByClave(claveOperacion: string) {
     return this.prisma.actividadDiaria.findUnique({
@@ -103,6 +118,18 @@ export class ActividadesDiariasRepository {
         fecha: datos.fecha,
         descripcion: datos.descripcion,
         observaciones: datos.observaciones ?? null,
+      },
+      include: includeActividad,
+    });
+  }
+
+  actualizar(id: number, datos: DatosActualizarActividad) {
+    return this.prisma.actividadDiaria.update({
+      where: { id },
+      data: {
+        ...(datos.fecha ? { fecha: datos.fecha } : {}),
+        descripcion: datos.descripcion,
+        observaciones: datos.observaciones,
       },
       include: includeActividad,
     });

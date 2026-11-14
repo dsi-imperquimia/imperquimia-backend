@@ -99,6 +99,7 @@ export async function seedRoles(prisma: PrismaClient) {
   const actividadesDiariasPermissions: PermissionType[] = [
     { id: 36, name: 'ACTIVIDAD_CREATE', description: 'Permiso para registrar actividades diarias' },
     { id: 37, name: 'ACTIVIDAD_READ', description: 'Permiso para consultar actividades diarias' },
+    { id: 38, name: 'ACTIVIDAD_UPDATE', description: 'Permiso para editar actividades diarias' },
   ];
 
   const permissions: PermissionType[] = [

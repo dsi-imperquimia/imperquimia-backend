@@ -19,6 +19,13 @@ function actividadMock(overrides: Record<string, unknown> = {}) {
     fecha: new Date('2026-11-10T00:00:00.000Z'),
     descripcion: 'Instalación de membrana asfáltica en azotea',
     observaciones: null,
+    createdAt: new Date(),
+    proyecto: {
+      id: 10,
+      nombre: 'Edificio Central',
+      estado: 'ACTIVO',
+      jefeProyectoId: 7,
+    },
     ...overrides,
   };
 }
@@ -26,6 +33,7 @@ function actividadMock(overrides: Record<string, unknown> = {}) {
 describe('ActividadesDiariasService', () => {
   function setup() {
     const repo = {
+      findById: jest.fn(),
       findByClave: jest.fn(),
       findUsuario: jest.fn(),
       findProyecto: jest.fn(),
@@ -33,6 +41,7 @@ describe('ActividadesDiariasService', () => {
       findProyectosDisponibles: jest.fn(),
       findPorProyecto: jest.fn(),
       crear: jest.fn(),
+      actualizar: jest.fn(),
     };
     return {
       repo,
@@ -291,5 +300,101 @@ describe('ActividadesDiariasService', () => {
     );
 
     expect(resultado).toEqual({ actividad: existente, repetido: true });
+  });
+
+  describe('actualizar (GPRCIMPER-34)', () => {
+    it('permite al jefe de proyecto editar un registro antes de cumplir 48 horas desde su creación', async () => {
+      const { repo, service } = setup();
+      const hace24Horas = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findById.mockResolvedValue(
+        actividadMock({ createdAt: hace24Horas }),
+      );
+      repo.actualizar.mockResolvedValue(
+        actividadMock({
+          createdAt: hace24Horas,
+          descripcion: 'Descripción corregida sin errores ortográficos',
+          observaciones: 'Nota técnica actualizada',
+        }),
+      );
+
+      const actualizada = await service.actualizar(
+        1,
+        {
+          descripcion: '  Descripción corregida sin errores ortográficos  ',
+          observaciones: '  Nota técnica actualizada ',
+        },
+        5,
+      );
+
+      expect(actualizada.descripcion).toBe(
+        'Descripción corregida sin errores ortográficos',
+      );
+      expect(repo.actualizar).toHaveBeenCalledWith(1, {
+        fecha: undefined,
+        descripcion: 'Descripción corregida sin errores ortográficos',
+        observaciones: 'Nota técnica actualizada',
+      });
+    });
+
+    it('rechaza con 403 al jefe de proyecto si han pasado 48 horas o más desde la creación', async () => {
+      const { repo, service } = setup();
+      const hace49Horas = new Date(Date.now() - 49 * 60 * 60 * 1000);
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findById.mockResolvedValue(
+        actividadMock({ createdAt: hace49Horas }),
+      );
+
+      await expect(
+        service.actualizar(
+          1,
+          {
+            descripcion: 'Intento de edición fuera de plazo',
+          },
+          5,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.actualizar).not.toHaveBeenCalled();
+    });
+
+    it('permite a administración editar el registro aunque hayan pasado más de 48 horas', async () => {
+      const { repo, service } = setup();
+      const hace72Horas = new Date(Date.now() - 72 * 60 * 60 * 1000);
+      repo.findUsuario.mockResolvedValue({
+        id: 1,
+        empleadoId: null,
+        role: { name: 'Administrador' },
+      });
+      repo.findById.mockResolvedValue(
+        actividadMock({ createdAt: hace72Horas }),
+      );
+      repo.actualizar.mockResolvedValue(
+        actividadMock({
+          createdAt: hace72Horas,
+          descripcion: 'Corrección autorizada por administración',
+        }),
+      );
+
+      const actualizada = await service.actualizar(
+        1,
+        {
+          descripcion: 'Corrección autorizada por administración',
+        },
+        1,
+      );
+
+      expect(actualizada.descripcion).toBe(
+        'Corrección autorizada por administración',
+      );
+      expect(repo.actualizar).toHaveBeenCalled();
+    });
   });
 });

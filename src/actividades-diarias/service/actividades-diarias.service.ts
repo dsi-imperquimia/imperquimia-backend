@@ -6,8 +6,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ActualizarActividadDiariaDto } from '../dto/actualizar-actividad-diaria.dto';
 import { CrearActividadDiariaDto } from '../dto/crear-actividad-diaria.dto';
 import { ActividadesDiariasRepository } from '../repository/actividades-diarias.repository';
+
+export const PLAZO_EDICION_HORAS = 48;
+export const PLAZO_EDICION_MS = PLAZO_EDICION_HORAS * 60 * 60 * 1000;
 
 @Injectable()
 export class ActividadesDiariasService {
@@ -18,7 +22,7 @@ export class ActividadesDiariasService {
     if (!usuario) {
       throw new ForbiddenException('Usuario no disponible.');
     }
-    const esAdmin = usuario.role?.name.toLocaleLowerCase() === 'administrador';
+    const esAdmin = this.esAdministrador(usuario.role?.name);
     return this.repo.findProyectosDisponibles(usuario.empleadoId, esAdmin);
   }
 
@@ -34,13 +38,37 @@ export class ActividadesDiariasService {
     if (!proyecto) {
       throw new NotFoundException('Proyecto no encontrado.');
     }
-    const esAdmin = usuario.role?.name.toLocaleLowerCase() === 'administrador';
+    const esAdmin = this.esAdministrador(usuario.role?.name);
     if (!esAdmin && proyecto.jefeProyectoId !== usuario.empleadoId) {
       throw new ForbiddenException(
         'Solo el jefe de proyecto asignado puede consultar sus actividades.',
       );
     }
     return this.repo.findPorProyecto(proyecto.id);
+  }
+
+  async findOne(id: number, usuarioId: number) {
+    const [usuario, actividad] = await Promise.all([
+      this.repo.findUsuario(usuarioId),
+      this.repo.findById(id),
+    ]);
+    if (!usuario) {
+      throw new ForbiddenException('Usuario no disponible.');
+    }
+    if (!actividad) {
+      throw new NotFoundException('El registro de actividad diaria no existe.');
+    }
+    const esAdmin = this.esAdministrador(usuario.role?.name);
+    if (
+      !esAdmin &&
+      actividad.proyecto.jefeProyectoId !== usuario.empleadoId &&
+      actividad.usuarioId !== usuario.id
+    ) {
+      throw new ForbiddenException(
+        'Solo el jefe de proyecto asignado puede consultar esta actividad.',
+      );
+    }
+    return actividad;
   }
 
   async registrar(dto: CrearActividadDiariaDto, usuarioId: number) {
@@ -84,7 +112,7 @@ export class ActividadesDiariasService {
       );
     }
 
-    const esAdmin = usuario.role?.name.toLocaleLowerCase() === 'administrador';
+    const esAdmin = this.esAdministrador(usuario.role?.name);
     if (!esAdmin) {
       const empleadoId = usuario.empleadoId;
       const esJefe =
@@ -124,6 +152,73 @@ export class ActividadesDiariasService {
       }
       throw error;
     }
+  }
+
+  async actualizar(
+    id: number,
+    dto: ActualizarActividadDiariaDto,
+    usuarioId: number,
+  ) {
+    const descripcion = dto.descripcion?.trim() ?? '';
+    if (!descripcion) {
+      throw new BadRequestException({
+        message: {
+          descripcion: ['Ingresa la descripción de la actividad.'],
+        },
+        error: 'Bad Request',
+        statusCode: 400,
+      });
+    }
+
+    const fecha = dto.fecha ? this.parsearYValidarFecha(dto.fecha) : undefined;
+
+    const [usuario, actividad] = await Promise.all([
+      this.repo.findUsuario(usuarioId),
+      this.repo.findById(id),
+    ]);
+
+    if (!usuario) {
+      throw new ForbiddenException('Usuario no disponible.');
+    }
+    if (!actividad) {
+      throw new NotFoundException('El registro de actividad diaria no existe.');
+    }
+
+    const esAdmin = this.esAdministrador(usuario.role?.name);
+    if (!esAdmin) {
+      const esJefe =
+        Boolean(usuario.empleadoId) &&
+        actividad.proyecto.jefeProyectoId === usuario.empleadoId;
+      if (!esJefe && actividad.usuarioId !== usuario.id) {
+        throw new ForbiddenException(
+          'Solo el jefe de proyecto asignado puede editar este registro.',
+        );
+      }
+
+      const diferenciaMs = Date.now() - new Date(actividad.createdAt).getTime();
+      if (diferenciaMs >= PLAZO_EDICION_MS) {
+        throw new ForbiddenException(
+          'El plazo de 48 horas para editar este registro ha vencido. Solo administración puede editarlo.',
+        );
+      }
+    }
+
+    const observaciones = dto.observaciones?.trim() || null;
+
+    return this.repo.actualizar(id, {
+      fecha,
+      descripcion,
+      observaciones,
+    });
+  }
+
+  private esAdministrador(rolNombre?: string | null): boolean {
+    if (!rolNombre) return false;
+    const normalizado = rolNombre
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase();
+    return normalizado === 'administrador' || normalizado === 'administracion';
   }
 
   private parsearYValidarFecha(valor: string): Date {
