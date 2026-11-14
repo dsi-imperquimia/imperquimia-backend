@@ -6,6 +6,7 @@ import { validationExceptionFactory } from '@/common/pipes/validation-exception.
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
 import { ProyectoRepository } from '../repository/proyectoRepository';
 import { ProyectoService } from './proyecto.service';
+import { MailService } from '@/common/mail/mail.service';
 
 const base = {
   nombre: 'Obra',
@@ -25,8 +26,17 @@ function setup() {
     update: jest.fn().mockImplementation(async (_id: number, data: unknown) => data),
     findUnique: jest.fn(),
     cancelar: jest.fn().mockResolvedValue({ id: 9, estado: 'CANCELADO', deletedAt: null }),
+    findCorreosEmpleadosActivos: jest.fn().mockResolvedValue([]),
   };
-  return { repo, service: new ProyectoService(repo as unknown as ProyectoRepository) };
+  const mail = { enviar: jest.fn().mockResolvedValue(undefined) };
+  return {
+    repo,
+    mail,
+    service: new ProyectoService(
+      repo as unknown as ProyectoRepository,
+      mail as unknown as MailService,
+    ),
+  };
 }
 
 describe('ProyectoService: presupuesto de materiales', () => {
@@ -131,30 +141,99 @@ describe('ProyectoService: presupuesto de materiales', () => {
 });
 
 describe('ProyectoService: cancelación', () => {
-  it('cambia el estado y conserva el proyecto', async () => {
+  it('cambia el estado, guarda el motivo y conserva el proyecto', async () => {
     const { repo, service } = setup();
     repo.findUnique.mockResolvedValue({
       id: 9,
+      nombre: 'Obra',
       estado: 'ACTIVO',
       empleados: [],
       herramientas: [],
     });
-    await expect(service.cancelar(9)).resolves.toMatchObject({
+    await expect(service.cancelar(9, 'Cliente desistió')).resolves.toMatchObject({
       estado: 'CANCELADO',
       deletedAt: null,
     });
-    expect(repo.cancelar).toHaveBeenCalledWith(9);
+    expect(repo.cancelar).toHaveBeenCalledWith(9, 'Cliente desistió');
   });
 
-  it('impide cancelar con asignaciones activas', async () => {
+  it('no exige retirar empleados o herramientas: en su lugar notifica a los asignados', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra',
+      estado: 'ACTIVO',
+      empleados: [{ fechaRetiro: null }],
+      herramientas: [{ id: 1 }],
+    });
+    repo.findCorreosEmpleadosActivos.mockResolvedValue([
+      { empleado: { nombreCompleto: 'Ana', user: { email: 'ana@test.com' } } },
+      { empleado: { nombreCompleto: 'Sin cuenta', user: null } },
+    ]);
+    await expect(
+      service.cancelar(9, 'Cliente desistió'),
+    ).resolves.toMatchObject({ estado: 'CANCELADO' });
+    expect(repo.cancelar).toHaveBeenCalledWith(9, 'Cliente desistió');
+    expect(mail.enviar).toHaveBeenCalledTimes(1);
+    expect(mail.enviar).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'ana@test.com' }),
+    );
+  });
+
+  it('impide cancelar un proyecto ya cancelado', async () => {
     const { repo, service } = setup();
     repo.findUnique.mockResolvedValue({
       id: 9,
-      estado: 'ACTIVO',
-      empleados: [{ fechaRetiro: null }],
+      nombre: 'Obra',
+      estado: 'CANCELADO',
+      empleados: [],
       herramientas: [],
     });
-    await expect(service.cancelar(9)).rejects.toMatchObject({ status: 409 });
+    await expect(service.cancelar(9, 'Motivo')).rejects.toMatchObject({
+      status: 409,
+    });
     expect(repo.cancelar).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProyectoService: cancelar desde la edición general', () => {
+  it('exige motivo cuando el estado destino es CANCELADO', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra',
+      estado: 'ACTIVO',
+      empleados: [],
+      herramientas: [],
+      detalles: [],
+    });
+    await expect(
+      service.update(9, { estado: 'CANCELADO' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('cancela, guarda el motivo y notifica igual que el flujo dedicado', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra',
+      cliente: 'Cliente',
+      phone: '70000000',
+      fechaInicio: new Date('2026-09-14'),
+      fechaFin: new Date('2026-09-30'),
+      estado: 'ACTIVO',
+      empleados: [{ fechaRetiro: null }],
+      herramientas: [{ id: 1 }],
+      detalles: [],
+    });
+    repo.findCorreosEmpleadosActivos.mockResolvedValue([
+      { empleado: { nombreCompleto: 'Ana', user: { email: 'ana@test.com' } } },
+    ]);
+    await service.update(9, { estado: 'CANCELADO', motivo: 'Fin de obra' });
+    const actualizado = repo.update.mock.calls[0][1] as Record<string, unknown>;
+    expect(actualizado.estado).toBe('CANCELADO');
+    expect(actualizado.motivoCancelacion).toBe('Fin de obra');
+    expect(mail.enviar).toHaveBeenCalledTimes(1);
   });
 });
