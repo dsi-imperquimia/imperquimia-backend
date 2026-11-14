@@ -1,6 +1,7 @@
 import { Empleado, Prisma } from '@gen/prisma/client';
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -96,6 +97,72 @@ export class EmpleadoService {
         sobreasignado: cargaHoraria > 1,
       };
     });
+  }
+
+  private async resolveEmpleadoId(userId: number): Promise<number> {
+    const usuario = await this.repo.findEmpleadoIdPorUsuario(userId);
+    if (!usuario?.empleadoId) {
+      throw new ForbiddenException('Tu usuario no está vinculado a un empleado.');
+    }
+    return usuario.empleadoId;
+  }
+
+  // Lista de proyectos asignados al técnico autenticado, con contador de
+  // pendientes por visualizar (GPRCIMPER-122).
+  async misAsignaciones(userId: number) {
+    const empleadoId = await this.resolveEmpleadoId(userId);
+    const asignaciones = await this.repo.findMisAsignaciones(empleadoId);
+    const items = asignaciones.map(({ proyecto, vistaAt }) => ({
+      ...proyecto,
+      vista: vistaAt !== null,
+      vistaAt,
+    }));
+    return {
+      items,
+      pendientes: items.filter((item) => !item.vista).length,
+    };
+  }
+
+  // Detalle de una asignación propia. No marca la visualización por sí
+  // sola: el frontend llama a marcarVista al abrir el detalle.
+  async miAsignacionDetalle(userId: number, proyectoId: number) {
+    const empleadoId = await this.resolveEmpleadoId(userId);
+    const asignacion = await this.repo.findMiAsignacionDetalle(
+      empleadoId,
+      proyectoId,
+    );
+    if (!asignacion) {
+      throw new NotFoundException(
+        'No tienes una asignación vigente en este proyecto.',
+      );
+    }
+    const { proyecto, vistaAt } = asignacion;
+    const { jefeProyecto, ...datosProyecto } = proyecto;
+    return {
+      ...datosProyecto,
+      vista: vistaAt !== null,
+      vistaAt,
+      jefeProyecto: jefeProyecto
+        ? { nombreCompleto: jefeProyecto.nombreCompleto, email: jefeProyecto.user?.email ?? null }
+        : null,
+    };
+  }
+
+  // Marca la asignación como "Vista" con fecha/hora exacta, la primera vez
+  // que el técnico abre el detalle (GPRCIMPER-122).
+  async marcarAsignacionVista(userId: number, proyectoId: number) {
+    const empleadoId = await this.resolveEmpleadoId(userId);
+    const asignacion = await this.repo.findMiAsignacionDetalle(
+      empleadoId,
+      proyectoId,
+    );
+    if (!asignacion) {
+      throw new NotFoundException(
+        'No tienes una asignación vigente en este proyecto.',
+      );
+    }
+    await this.repo.marcarAsignacionVista(empleadoId, proyectoId);
+    return { vista: true };
   }
 
   // Obtiene un empleado por id; lanza NotFoundException si no existe

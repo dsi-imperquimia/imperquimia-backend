@@ -571,6 +571,9 @@ model ProyectoEmpleado {
   empleado        Empleado  @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
   fechaAsignacion DateTime  @default(now()) @map("fecha_asignacion")
   fechaRetiro     DateTime? @map("fecha_retiro")
+  // Fecha/hora exacta en que el técnico abrió el detalle de la asignación
+  // (GPRCIMPER-122). Null = "Pendiente"; con valor = "Vista".
+  vistaAt         DateTime? @map("vista_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 

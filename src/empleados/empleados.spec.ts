@@ -1,5 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  ForbiddenException,
+  INestApplication,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import request from 'supertest';
 import { validationExceptionFactory } from '@/common/pipes/validation-exception.factory';
 import { EmpleadoController } from './controllers/empleado.controller';
@@ -303,4 +308,91 @@ describe('Empleados: contrato HTTP de habilidades', () => {
       expect(repo.update).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
+  function setup() {
+    const repo = {
+      findEmpleadoIdPorUsuario: jest.fn(),
+      findMisAsignaciones: jest.fn(),
+      findMiAsignacionDetalle: jest.fn(),
+      marcarAsignacionVista: jest.fn(),
+    };
+    return { repo, service: new EmpleadoService(repo as unknown as EmpleadoRepository) };
+  }
+
+  it('rechaza si el usuario no está vinculado a un empleado', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: null });
+    await expect(service.misAsignaciones(1)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.miAsignacionDetalle(1, 9)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.marcarAsignacionVista(1, 9)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lista los proyectos asignados con el contador de pendientes', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMisAsignaciones.mockResolvedValue([
+      { vistaAt: null, proyecto: { id: 1, nombre: 'Obra A', estado: 'ACTIVO' } },
+      { vistaAt: new Date('2026-11-10'), proyecto: { id: 2, nombre: 'Obra B', estado: 'ACTIVO' } },
+    ]);
+    const resultado = await service.misAsignaciones(1);
+    expect(repo.findMisAsignaciones).toHaveBeenCalledWith(5);
+    expect(resultado.pendientes).toBe(1);
+    expect(resultado.items).toEqual([
+      expect.objectContaining({ id: 1, vista: false }),
+      expect.objectContaining({ id: 2, vista: true }),
+    ]);
+  });
+
+  it('da el detalle con el contacto del jefe de proyecto', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: {
+        id: 9,
+        nombre: 'Obra A',
+        ubicacion: 'San Salvador',
+        jefeProyecto: { nombreCompleto: 'Ana Jefa', user: { email: 'ana@test.com' } },
+      },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle).toMatchObject({
+      id: 9,
+      vista: false,
+      jefeProyecto: { nombreCompleto: 'Ana Jefa', email: 'ana@test.com' },
+    });
+  });
+
+  it('da null como jefe de proyecto si no hay uno asignado', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: { id: 9, nombre: 'Obra A', jefeProyecto: null },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle.jefeProyecto).toBeNull();
+  });
+
+  it('responde 404 si la asignación no existe o no le pertenece', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue(null);
+    await expect(service.miAsignacionDetalle(1, 9)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.marcarAsignacionVista(1, 9)).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.marcarAsignacionVista).not.toHaveBeenCalled();
+  });
+
+  it('marca la asignación como vista', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: { id: 9, nombre: 'Obra A', jefeProyecto: null },
+    });
+    await expect(service.marcarAsignacionVista(1, 9)).resolves.toEqual({ vista: true });
+    expect(repo.marcarAsignacionVista).toHaveBeenCalledWith(5, 9);
+  });
 });

@@ -56,6 +56,83 @@ export class EmpleadoRepository {
       orderBy: { nombreCompleto: 'asc' },
     });
   }
+  // Empleado vinculado al usuario autenticado, para las rutas "mis
+  // asignaciones" (GPRCIMPER-122).
+  findEmpleadoIdPorUsuario(userId: number) {
+    return this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { empleadoId: true },
+    });
+  }
+
+  // Proyectos activos asignados al empleado, para que el técnico vea sus
+  // tareas pendientes (GPRCIMPER-122).
+  findMisAsignaciones(empleadoId: number) {
+    return this.prisma.proyectoEmpleado.findMany({
+      where: {
+        empleadoId,
+        fechaRetiro: null,
+        proyecto: { deletedAt: null, estado: { notIn: ['FINALIZADO', 'CANCELADO'] } },
+      },
+      select: {
+        vistaAt: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            ubicacion: true,
+            estado: true,
+            fechaInicio: true,
+            fechaFin: true,
+          },
+        },
+      },
+      orderBy: { fechaAsignacion: 'desc' },
+    });
+  }
+
+  // Detalle de una asignación propia, con datos de contacto del jefe de
+  // proyecto (GPRCIMPER-122).
+  findMiAsignacionDetalle(empleadoId: number, proyectoId: number) {
+    return this.prisma.proyectoEmpleado.findFirst({
+      where: {
+        empleadoId,
+        proyectoId,
+        fechaRetiro: null,
+        proyecto: { deletedAt: null },
+      },
+      select: {
+        vistaAt: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            ubicacion: true,
+            descripcion: true,
+            estado: true,
+            fechaInicio: true,
+            fechaFin: true,
+            jefeProyecto: {
+              select: {
+                nombreCompleto: true,
+                user: { select: { email: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // Marca la asignación como vista la primera vez que el técnico abre el
+  // detalle; no pisa la fecha si ya se había visualizado (GPRCIMPER-122).
+  marcarAsignacionVista(empleadoId: number, proyectoId: number) {
+    return this.prisma.proyectoEmpleado.updateMany({
+      where: { empleadoId, proyectoId, vistaAt: null },
+      data: { vistaAt: new Date() },
+    });
+  }
+
   // Consulta sin el filtro de borrado lógico: un empleado eliminado todavía
   // ocupa su DUI y NIT en los índices únicos de la base de datos.
   findDocumentConflicts(dui: string, nit: string) {
