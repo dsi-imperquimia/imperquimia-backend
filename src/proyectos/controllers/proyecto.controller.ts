@@ -9,28 +9,17 @@ import {
   Req,
 } from '@nestjs/common';
 import { ProyectoService } from '../service/proyecto.service';
-import { ProyectoAlertasService } from '../service/proyecto-alertas.service';
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
 
 @Controller('proyectos')
 export class ProyectoController {
-  constructor(
-    private readonly proyectoService: ProyectoService,
-    private readonly alertasService: ProyectoAlertasService,
-  ) {}
+  constructor(private readonly proyectoService: ProyectoService) {}
 
   // POST /proyectos
   @Post()
   create(@Body() dto: CreateProyectoDto, @Req() req: { user: { sub: number } }) {
     return this.proyectoService.create(dto, req.user.sub);
-  }
-
-  // Dispara manualmente la revisión de vencimientos (demo/pruebas; en
-  // producción corre sola todos los días a las 8am). GPRCIMPER-26.
-  @Post('revisar-vencimientos')
-  revisarVencimientos() {
-    return this.alertasService.revisarVencimientos();
   }
 
   @Patch(':id')

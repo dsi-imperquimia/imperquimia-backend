@@ -11,7 +11,6 @@ import {
   DetalleProyectoDto,
 } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
-import { calcularAlertaVencimiento } from '../utils/alerta-vencimiento';
 
 const MAX_IMPORTE = new Prisma.Decimal('99999999.99');
 
@@ -203,15 +202,8 @@ export class ProyectoService {
     });
   }
 
-  async findAll() {
-    const proyectos = await this.repo.findMany();
-    return proyectos.map((proyecto) => ({
-      ...proyecto,
-      alertaVencimiento: calcularAlertaVencimiento(
-        proyecto.estado,
-        proyecto.fechaFin,
-      ),
-    }));
+  findAll() {
+    return this.repo.findMany();
   }
 
   async findOne(id: number) {
@@ -219,13 +211,7 @@ export class ProyectoService {
     if (!proyecto) {
       throw new NotFoundException(`Proyecto #${id} no encontrado`);
     }
-    return {
-      ...proyecto,
-      alertaVencimiento: calcularAlertaVencimiento(
-        proyecto.estado,
-        proyecto.fechaFin,
-      ),
-    };
+    return proyecto;
   }
 
   async cancelar(id: number) {

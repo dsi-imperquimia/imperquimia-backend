@@ -94,45 +94,4 @@ export class ProyectoRepository {
       data: { estado: 'CANCELADO' },
     });
   }
-
-  // Candidatos a alerta de vencimiento: proyectos activos con fecha de fin,
-  // a los que todavía les falta al menos una de las dos alertas (GPRCIMPER-26).
-  findCandidatosAlertaVencimiento() {
-    return this.prisma.proyecto.findMany({
-      where: {
-        deletedAt: null,
-        estado: 'ACTIVO',
-        fechaFin: { not: null },
-        OR: [{ alertaProximaEnviada: false }, { alertaVencidaEnviada: false }],
-      },
-      select: {
-        id: true,
-        nombre: true,
-        fechaFin: true,
-        alertaProximaEnviada: true,
-        alertaVencidaEnviada: true,
-      },
-    });
-  }
-
-  marcarAlertaProximaEnviada(id: number) {
-    return this.prisma.proyecto.update({
-      where: { id },
-      data: { alertaProximaEnviada: true },
-    });
-  }
-
-  marcarAlertaVencidaEnviada(id: number) {
-    return this.prisma.proyecto.update({
-      where: { id },
-      data: { alertaVencidaEnviada: true },
-    });
-  }
-
-  findCorreosAdministradores() {
-    return this.prisma.user.findMany({
-      where: { deletedAt: null, role: { name: 'Administrador' } },
-      select: { email: true },
-    });
-  }
 }

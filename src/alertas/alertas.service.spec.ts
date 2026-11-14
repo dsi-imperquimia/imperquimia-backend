@@ -1,13 +1,17 @@
 import { EstadoNotificacionAlerta, FrecuenciaAlerta } from '@gen/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { MailService } from '@/common/mail/mail.service';
 import { AlertasService } from './alertas.service';
+
+const mailStub = { enviar: jest.fn() } as unknown as MailService;
 
 describe('bandeja paginada de notificaciones', () => {
   const findMany = jest.fn();
   const count = jest.fn();
-  const service = new AlertasService({
-    notificacionAlerta: { findMany, count },
-  } as unknown as PrismaService);
+  const service = new AlertasService(
+    { notificacionAlerta: { findMany, count } } as unknown as PrismaService,
+    mailStub,
+  );
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -84,11 +88,14 @@ describe('creación de alertas para el equipo del proyecto', () => {
       auditoriaAlerta: { create: auditCreate },
     }),
   );
-  const service = new AlertasService({
-    user: { findFirst: userFindFirst },
-    proyecto: { findFirst: projectFindFirst },
-    $transaction: transaction,
-  } as unknown as PrismaService);
+  const service = new AlertasService(
+    {
+      user: { findFirst: userFindFirst },
+      proyecto: { findFirst: projectFindFirst },
+      $transaction: transaction,
+    } as unknown as PrismaService,
+    mailStub,
+  );
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -249,10 +256,13 @@ describe('personal disponible para recibir alertas', () => {
         ],
       },
     ]);
-    const service = new AlertasService({
-      user: { findFirst: userFindFirst },
-      proyecto: { findMany: projectFindMany },
-    } as unknown as PrismaService);
+    const service = new AlertasService(
+      {
+        user: { findFirst: userFindFirst },
+        proyecto: { findMany: projectFindMany },
+      } as unknown as PrismaService,
+      mailStub,
+    );
 
     await expect(service.proyectosDisponibles(12)).resolves.toEqual([
       {
@@ -316,13 +326,20 @@ describe('destinatarios de alertas automáticas', () => {
         },
       },
     ]);
-    const service = new AlertasService({
-      configuracionAlerta: { findMany: configuracionesFindMany },
-      notificacionAlerta: {
-        findFirst: alertaFindFirst,
-        create: alertaCreate,
-      },
-    } as unknown as PrismaService);
+    const service = new AlertasService(
+      {
+        configuracionAlerta: { findMany: configuracionesFindMany },
+        notificacionAlerta: {
+          findFirst: alertaFindFirst,
+          create: alertaCreate,
+        },
+        // Sin proyectos activos adicionales: la regla implícita de
+        // vencimiento (GPRCIMPER-26) no debe generar notificaciones de más
+        // en este escenario, que solo prueba las reglas configuradas.
+        proyecto: { findMany: jest.fn().mockResolvedValue([]) },
+      } as unknown as PrismaService,
+      mailStub,
+    );
 
     await service.generarAutomaticamente(new Date('2026-11-12T12:00:00.000Z'));
 

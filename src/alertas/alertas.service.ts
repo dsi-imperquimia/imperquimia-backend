@@ -14,12 +14,22 @@ import {
   Prisma,
 } from '@gen/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { MailService } from '@/common/mail/mail.service';
 import { ActualizarConfiguracionAlertaDto } from './dto/actualizar-configuracion-alerta.dto';
 import { CrearConfiguracionAlertaDto } from './dto/crear-configuracion-alerta.dto';
 import { CrearNotificacionAlertaDto } from './dto/crear-notificacion-alerta.dto';
-import { debeGenerarse, fechaLocal } from './alert-schedule';
+import { debeGenerarse, fechaLocal, restarDias } from './alert-schedule';
 
 const ZONA_HORARIA = process.env.ALERTAS_TIME_ZONE || 'America/El_Salvador';
+// Reglas implícitas de vencimiento de proyecto (GPRCIMPER-26): no requieren
+// que un administrador cree una ConfiguracionAlerta manualmente, aplican a
+// todo proyecto activo con fecha de fin. Se identifican con un reglaId
+// negativo para que el índice único (reglaId, proyectoId, destinatarioId,
+// ultimaFechaProgramada) las deduplique igual que a las reglas configuradas,
+// sin colisionar con los id autoincrementales de ConfiguracionAlerta.
+const DIAS_ANTES_VENCIMIENTO_PROYECTO = 7;
+const REGLA_PROYECTO_PROXIMO_VENCER = -1;
+const REGLA_PROYECTO_VENCIDO = -2;
 const PROYECTO_CONFIG_SELECT = {
   id: true,
   nombre: true,
@@ -45,7 +55,10 @@ export class AlertasService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private procesando = false;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   async proyectosDisponibles(usuarioId: number) {
     const usuario = await this.prisma.user.findFirst({
@@ -610,6 +623,8 @@ export class AlertasService implements OnModuleInit, OnModuleDestroy {
           }
         }
       }
+
+      await this.generarAlertasVencimientoProyecto(now, hoy);
     } catch (error) {
       this.logger.error(
         'No se pudieron generar las alertas automáticas.',
@@ -617,6 +632,90 @@ export class AlertasService implements OnModuleInit, OnModuleDestroy {
       );
     } finally {
       this.procesando = false;
+    }
+  }
+
+  // Alerta de vencimiento de proyecto (GPRCIMPER-26): a diferencia de las
+  // ConfiguracionAlerta de arriba (manuales, por proyecto, dirigidas a jefe
+  // y empleados asignados), esta regla es automática para todo proyecto
+  // activo con fecha de fin y notifica a los administradores, por sistema y
+  // por correo, tal como pide el criterio de aceptación del ticket.
+  private async generarAlertasVencimientoProyecto(now: Date, hoy: string) {
+    const proyectos = await this.prisma.proyecto.findMany({
+      where: { deletedAt: null, estado: 'ACTIVO', fechaFin: { not: null } },
+      select: { id: true, nombre: true, fechaFin: true },
+    });
+    if (!proyectos.length) return;
+
+    const administradores = await this.prisma.user.findMany({
+      where: { deletedAt: null, role: { name: 'Administrador' } },
+      select: { id: true, email: true },
+    });
+    if (!administradores.length) return;
+
+    for (const proyecto of proyectos) {
+      const fechaFin = proyecto.fechaFin!.toISOString().slice(0, 10);
+      const vencido = hoy > fechaFin;
+      const proximoAVencer =
+        !vencido &&
+        hoy >= restarDias(fechaFin, DIAS_ANTES_VENCIMIENTO_PROYECTO);
+      if (!vencido && !proximoAVencer) continue;
+
+      const reglaId = vencido
+        ? REGLA_PROYECTO_VENCIDO
+        : REGLA_PROYECTO_PROXIMO_VENCER;
+      const nombreConfiguracion = vencido
+        ? 'Proyecto vencido'
+        : 'Proyecto próximo a vencer';
+      const descripcion = vencido
+        ? `El proyecto "${proyecto.nombre}" venció el ${fechaFin} y sigue activo.`
+        : `El proyecto "${proyecto.nombre}" vence el ${fechaFin} (7 días o menos).`;
+
+      for (const administrador of administradores) {
+        const existente = await this.prisma.notificacionAlerta.findFirst({
+          where: {
+            reglaId,
+            proyectoId: proyecto.id,
+            destinatarioId: administrador.id,
+          },
+          select: { id: true },
+        });
+        if (existente) continue;
+
+        try {
+          await this.prisma.notificacionAlerta.create({
+            data: {
+              reglaId,
+              configuracionId: null,
+              proyectoId: proyecto.id,
+              destinatarioId: administrador.id,
+              creadaPorId: null,
+              nombreConfiguracion,
+              nombreProyecto: proyecto.nombre,
+              descripcion,
+              primeraGeneracion: now,
+              ultimaGeneracion: now,
+              ultimaFechaProgramada: new Date(`${hoy}T00:00:00.000Z`),
+            },
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            continue;
+          }
+          throw error;
+        }
+
+        if (administrador.email) {
+          await this.mail.enviar({
+            to: administrador.email,
+            subject: `${nombreConfiguracion}: ${proyecto.nombre}`,
+            text: descripcion,
+          });
+        }
+      }
     }
   }
 
