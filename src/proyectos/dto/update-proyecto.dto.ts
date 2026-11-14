@@ -3,13 +3,15 @@ import { IsIn, IsNumber, IsOptional, Min } from 'class-validator';
 import { CreateProyectoDto } from './create-proyecto.dto';
 
 // Estados que se pueden asignar desde la edición general del proyecto.
-// CANCELADO solo se asigna a través del flujo dedicado de cancelación (GPRCIMPER-28).
+// CANCELADO pasa por las mismas validaciones que el flujo dedicado de
+// cancelación (GPRCIMPER-28): ver ProyectoService.validarCancelable.
 export const ESTADOS_EDITABLES = [
   'ACTIVO',
   'EN_PAUSA',
   'FINALIZADO',
   'PAGADO',
   'GARANTIA',
+  'CANCELADO',
 ] as const;
 export const TIPOS_OBRA = [
   'RESIDENCIAL',

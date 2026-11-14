@@ -167,6 +167,9 @@ export class ProyectoService {
     if (actual.estado === 'CANCELADO') {
       throw new ConflictException('No se puede editar un proyecto cancelado.');
     }
+    if (dto.estado === 'CANCELADO') {
+      this.validarCancelable(actual);
+    }
     const datos = this.datosProyecto({
       nombre: dto.nombre ?? actual.nombre,
       cliente: dto.cliente === undefined ? (actual.cliente ?? '') : dto.cliente,
@@ -225,13 +228,14 @@ export class ProyectoService {
     return proyecto;
   }
 
-  async cancelar(id: number) {
-    const proyecto = await this.findOne(id);
-
-    if (proyecto.estado === 'CANCELADO') {
-      throw new ConflictException('El proyecto ya está cancelado.');
-    }
-
+  // Compartida entre cancelar() y update() (cuando el estado destino es
+  // CANCELADO): ninguna de las dos vías debe poder cancelar un proyecto que
+  // todavía tiene empleados o herramientas asignados.
+  private validarCancelable(proyecto: {
+    id: number;
+    empleados: { fechaRetiro: Date | null }[];
+    herramientas: unknown[];
+  }) {
     if (
       proyecto.empleados.some((asignacion) => asignacion.fechaRetiro === null)
     ) {
@@ -242,9 +246,18 @@ export class ProyectoService {
 
     if (proyecto.herramientas.length > 0) {
       throw new BadRequestException(
-        `No se puede cancelar el proyecto #${id} porque tiene ${proyecto.herramientas.length} herramienta(s) asignada(s)`,
+        `No se puede cancelar el proyecto #${proyecto.id} porque tiene ${proyecto.herramientas.length} herramienta(s) asignada(s)`,
       );
     }
+  }
+
+  async cancelar(id: number) {
+    const proyecto = await this.findOne(id);
+
+    if (proyecto.estado === 'CANCELADO') {
+      throw new ConflictException('El proyecto ya está cancelado.');
+    }
+    this.validarCancelable(proyecto);
 
     return this.repo.cancelar(id);
   }
