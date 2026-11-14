@@ -95,6 +95,12 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 31, name: 'INVENTARIO_MATERIAL_EXIT', description: 'Permiso para registrar salidas de materiales' },
   ];
 
+  // prettier-ignore
+  const actividadesDiariasPermissions: PermissionType[] = [
+    { id: 36, name: 'ACTIVIDAD_CREATE', description: 'Permiso para registrar actividades diarias' },
+    { id: 37, name: 'ACTIVIDAD_READ', description: 'Permiso para consultar actividades diarias' },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
@@ -105,6 +111,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...herramientasPermissions,
     ...alertasPermissions,
     ...inventarioMaterialesPermissions,
+    ...actividadesDiariasPermissions,
   ];
 
   for (const permission of permissions) {
@@ -140,15 +147,19 @@ export async function seedRoles(prisma: PrismaClient) {
         ...alertasPermissions.filter((p) =>
           ['ALERTA_CREATE', 'ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
         ),
+        ...actividadesDiariasPermissions,
       ].map((p) => p.id),
       description: 'Jefe de proyecto',
     },
     {
       id: 3,
       name: 'Técnico',
-      permissionIds: alertasPermissions
-        .filter((p) => ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name))
-        .map((p) => p.id),
+      permissionIds: [
+        ...alertasPermissions.filter((p) =>
+          ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
+        ),
+        ...actividadesDiariasPermissions,
+      ].map((p) => p.id),
       description: 'Técnico',
     },
   ];

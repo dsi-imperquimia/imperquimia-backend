@@ -44,6 +44,7 @@ model User {
   alertasRecibidas           NotificacionAlerta[]   @relation("AlertaDestinatario")
   alertasCreadas             NotificacionAlerta[]   @relation("AlertaCreador")
   auditoriasAlerta           AuditoriaAlerta[]
+  actividadesDiarias         ActividadDiaria[]
 
   @@map("mnt_users")
 }
@@ -73,6 +74,7 @@ model Empleado {
 
   // Proyectos donde este empleado es el jefe de proyecto (GPRCIMPER-23)
   proyectosComoJefe Proyecto[] @relation("ProyectoJefe")
+  actividadesDiarias ActividadDiaria[]
 
   @@map("mnt_empleados")
 }
@@ -430,6 +432,7 @@ model Proyecto {
   ubicacionMaterial         UbicacionMaterial?
   configuracionesAlerta     ConfiguracionAlerta[]
   notificacionesAlerta      NotificacionAlerta[]
+  actividadesDiarias        ActividadDiaria[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -591,4 +594,28 @@ model HabilidadEmpleado {
 
   @@id([empleadoId, habilidadId])
   @@map("habilidad_empleados")
+}
+
+// ==========================================
+// MODELO: ACTIVIDADES DIARIAS (GPRCIMPER-50)
+// ==========================================
+model ActividadDiaria {
+  id             Int       @id @default(autoincrement())
+  claveOperacion String    @unique @map("clave_operacion") @db.Uuid
+  proyectoId     Int       @map("proyecto_id")
+  proyecto       Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  usuarioId      Int       @map("usuario_id")
+  usuario        User      @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  empleadoId     Int?      @map("empleado_id")
+  empleado       Empleado? @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
+  fecha          DateTime  @db.Date
+  descripcion    String    @db.Text
+  observaciones  String?   @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@index([proyectoId, fecha])
+  @@index([usuarioId, fecha])
+  @@map("proy_actividades_diarias")
 }
