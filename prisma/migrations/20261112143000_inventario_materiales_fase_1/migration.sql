@@ -64,30 +64,3 @@ ALTER TABLE "inv_movimientos_materiales" ADD CONSTRAINT "inv_movimientos_materia
 ALTER TABLE "inv_movimientos_materiales" ADD CONSTRAINT "inv_movimientos_materiales_origen_id_fkey" FOREIGN KEY ("origen_id") REFERENCES "inv_ubicaciones_materiales"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "inv_movimientos_materiales" ADD CONSTRAINT "inv_movimientos_materiales_destino_id_fkey" FOREIGN KEY ("destino_id") REFERENCES "inv_ubicaciones_materiales"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "inv_movimientos_materiales" ADD CONSTRAINT "inv_movimientos_materiales_usuario_id_fkey" FOREIGN KEY ("usuario_id") REFERENCES "mnt_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
-INSERT INTO "inv_ubicaciones_materiales" ("codigo", "nombre", "tipo")
-VALUES ('BODEGA-GENERAL', 'Bodega general', 'BODEGA')
-ON CONFLICT ("codigo") DO NOTHING;
-
-INSERT INTO "inv_existencias_materiales" ("material_id", "ubicacion_id", "cantidad")
-SELECT m."id", u."id", 0
-FROM "mnt_materiales" m
-CROSS JOIN "inv_ubicaciones_materiales" u
-WHERE u."codigo" = 'BODEGA-GENERAL'
-ON CONFLICT ("material_id", "ubicacion_id") DO NOTHING;
-
-INSERT INTO "mnt_permissions" ("id", "name", "description") VALUES
-  (29, 'INVENTARIO_MATERIAL_READ', 'Permiso para consultar existencias y movimientos de materiales'),
-  (30, 'INVENTARIO_MATERIAL_ENTRY', 'Permiso para registrar entradas de materiales'),
-  (31, 'INVENTARIO_MATERIAL_EXIT', 'Permiso para registrar salidas de materiales')
-ON CONFLICT ("id") DO UPDATE SET "name" = EXCLUDED."name", "description" = EXCLUDED."description", "deleted_at" = NULL, "updated_at" = CURRENT_TIMESTAMP;
-
-INSERT INTO "mnt_role_permissions" ("role_id", "permission_id")
-SELECT 1, p."id" FROM "mnt_permissions" p WHERE p."id" IN (29, 30, 31)
-ON CONFLICT ("role_id", "permission_id") DO NOTHING;
-
-SELECT setval(
-  pg_get_serial_sequence('"mnt_permissions"', 'id'),
-  COALESCE((SELECT MAX("id") FROM "mnt_permissions"), 0) + 1,
-  false
-);
