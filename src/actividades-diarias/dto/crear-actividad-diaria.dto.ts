@@ -25,6 +25,13 @@ export class CrearActividadDiariaDto {
   )
   fecha!: string;
 
+  @IsString({ message: 'Ingresa el nombre de la actividad.' })
+  @IsNotEmpty({ message: 'Ingresa el nombre de la actividad.' })
+  @MaxLength(150, {
+    message: 'El nombre admite hasta 150 caracteres.',
+  })
+  nombre!: string;
+
   @IsString({ message: 'Ingresa la descripción de la actividad.' })
   @IsNotEmpty({ message: 'Ingresa la descripción de la actividad.' })
   @MaxLength(2000, {

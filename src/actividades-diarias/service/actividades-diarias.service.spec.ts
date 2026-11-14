@@ -17,6 +17,7 @@ function actividadMock(overrides: Record<string, unknown> = {}) {
     usuarioId: 5,
     empleadoId: 7,
     fecha: new Date('2026-11-10T00:00:00.000Z'),
+    nombre: 'Instalación de membrana',
     descripcion: 'Instalación de membrana asfáltica en azotea',
     observaciones: null,
     createdAt: new Date(),
@@ -112,6 +113,7 @@ describe('ActividadesDiariasService', () => {
         claveOperacion: uuid,
         proyectoId: 10,
         fecha: '2026-11-10',
+        nombre: '  Instalación de membrana  ',
         descripcion: '  Instalación de membrana asfáltica en azotea  ',
         observaciones: '  Sin contratiempos ',
       },
@@ -125,6 +127,7 @@ describe('ActividadesDiariasService', () => {
         proyectoId: 10,
         usuarioId: 5,
         empleadoId: 7,
+        nombre: 'Instalación de membrana',
         descripcion: 'Instalación de membrana asfáltica en azotea',
         observaciones: 'Sin contratiempos',
       }),
@@ -141,6 +144,7 @@ describe('ActividadesDiariasService', () => {
         claveOperacion: uuid,
         proyectoId: 10,
         fecha: '2026-11-10',
+        nombre: 'Instalación de membrana',
         descripcion: 'Instalación de membrana asfáltica en azotea',
       },
       5,
@@ -160,6 +164,7 @@ describe('ActividadesDiariasService', () => {
           claveOperacion: uuid,
           proyectoId: 10,
           fecha: '2026-11-10',
+          nombre: 'Avance diario',
           descripcion: 'Avance diario',
         },
         5,
@@ -184,6 +189,7 @@ describe('ActividadesDiariasService', () => {
           claveOperacion: uuid,
           proyectoId: 999,
           fecha: '2026-11-10',
+          nombre: 'Avance diario',
           descripcion: 'Avance diario',
         },
         5,
@@ -203,6 +209,7 @@ describe('ActividadesDiariasService', () => {
           claveOperacion: uuid,
           proyectoId: 10,
           fecha: '2026-11-10',
+          nombre: 'Avance diario',
           descripcion: 'Avance diario',
         },
         5,
@@ -231,6 +238,7 @@ describe('ActividadesDiariasService', () => {
           claveOperacion: uuid,
           proyectoId: 10,
           fecha: '2026-11-10',
+          nombre: 'Avance diario',
           descripcion: 'Avance diario',
         },
         5,
@@ -262,6 +270,7 @@ describe('ActividadesDiariasService', () => {
         claveOperacion: uuid,
         proyectoId: 10,
         fecha: '2026-11-10',
+        nombre: 'Supervisión de obra',
         descripcion: 'Supervisión de obra',
       },
       1,
@@ -280,7 +289,26 @@ describe('ActividadesDiariasService', () => {
           claveOperacion: uuid,
           proyectoId: 10,
           fecha: '2099-01-01',
+          nombre: 'Actividad futura',
           descripcion: 'Actividad futura',
+        },
+        5,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.crear).not.toHaveBeenCalled();
+  });
+
+  it('rechaza nombre vacío o solo espacios', async () => {
+    const { repo, service } = setup();
+
+    await expect(
+      service.registrar(
+        {
+          claveOperacion: uuid,
+          proyectoId: 10,
+          fecha: '2026-11-10',
+          nombre: '   ',
+          descripcion: 'Avance diario',
         },
         5,
       ),
@@ -317,6 +345,7 @@ describe('ActividadesDiariasService', () => {
         claveOperacion: uuid,
         proyectoId: 10,
         fecha: '2026-11-10',
+        nombre: 'Avance diario',
         descripcion: 'Avance diario',
       },
       5,
@@ -348,6 +377,7 @@ describe('ActividadesDiariasService', () => {
       const actualizada = await service.actualizar(
         1,
         {
+          nombre: '  Impermeabilización corregida  ',
           descripcion: '  Descripción corregida sin errores ortográficos  ',
           observaciones: '  Nota técnica actualizada ',
         },
@@ -359,6 +389,7 @@ describe('ActividadesDiariasService', () => {
       );
       expect(repo.actualizar).toHaveBeenCalledWith(1, {
         fecha: undefined,
+        nombre: 'Impermeabilización corregida',
         descripcion: 'Descripción corregida sin errores ortográficos',
         observaciones: 'Nota técnica actualizada',
       });
@@ -380,6 +411,7 @@ describe('ActividadesDiariasService', () => {
         service.actualizar(
           1,
           {
+            nombre: 'Edición fuera de plazo',
             descripcion: 'Intento de edición fuera de plazo',
           },
           5,
@@ -398,7 +430,14 @@ describe('ActividadesDiariasService', () => {
       repo.findById.mockResolvedValue(actividadMock());
 
       await expect(
-        service.actualizar(1, { descripcion: 'Edición no autorizada' }, 9),
+        service.actualizar(
+          1,
+          {
+            nombre: 'Edición no autorizada',
+            descripcion: 'Edición no autorizada',
+          },
+          9,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(repo.actualizar).not.toHaveBeenCalled();
     });
@@ -417,6 +456,7 @@ describe('ActividadesDiariasService', () => {
       repo.actualizar.mockResolvedValue(
         actividadMock({
           createdAt: hace72Horas,
+          nombre: 'Nombre autorizado por administración',
           descripcion: 'Corrección autorizada por administración',
         }),
       );
@@ -424,6 +464,7 @@ describe('ActividadesDiariasService', () => {
       const actualizada = await service.actualizar(
         1,
         {
+          nombre: 'Nombre autorizado por administración',
           descripcion: 'Corrección autorizada por administración',
         },
         1,

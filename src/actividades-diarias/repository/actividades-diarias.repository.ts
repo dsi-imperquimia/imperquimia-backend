@@ -7,12 +7,14 @@ export interface DatosCrearActividad {
   usuarioId: number;
   empleadoId: number | null;
   fecha: Date;
+  nombre: string;
   descripcion: string;
   observaciones?: string;
 }
 
 export interface DatosActualizarActividad {
   fecha?: Date;
+  nombre: string;
   descripcion: string;
   observaciones: string | null;
 }
@@ -119,6 +121,7 @@ export class ActividadesDiariasRepository {
         usuarioId: datos.usuarioId,
         empleadoId: datos.empleadoId,
         fecha: datos.fecha,
+        nombre: datos.nombre,
         descripcion: datos.descripcion,
         observaciones: datos.observaciones ?? null,
       },
@@ -131,6 +134,7 @@ export class ActividadesDiariasRepository {
       where: { id },
       data: {
         ...(datos.fecha ? { fecha: datos.fecha } : {}),
+        nombre: datos.nombre,
         descripcion: datos.descripcion,
         observaciones: datos.observaciones,
       },

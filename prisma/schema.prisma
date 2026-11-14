@@ -609,6 +609,7 @@ model ActividadDiaria {
   empleadoId     Int?      @map("empleado_id")
   empleado       Empleado? @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
   fecha          DateTime  @db.Date
+  nombre         String    @db.VarChar(150)
   descripcion    String    @db.Text
   observaciones  String?   @db.Text
   createdAt      DateTime  @default(now()) @map("created_at")

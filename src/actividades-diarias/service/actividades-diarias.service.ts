@@ -74,17 +74,34 @@ export class ActividadesDiariasService {
     return actividad;
   }
 
-  async registrar(dto: CrearActividadDiariaDto, usuarioId: number) {
+  private normalizarCamposActividad(dto: {
+    nombre?: string;
+    descripcion?: string;
+  }): { nombre: string; descripcion: string } {
+    const nombre = dto.nombre?.trim() ?? '';
     const descripcion = dto.descripcion?.trim() ?? '';
+    const errores: Record<string, string[]> = {};
+
+    if (!nombre) {
+      errores.nombre = ['Ingresa el nombre de la actividad.'];
+    }
     if (!descripcion) {
+      errores.descripcion = ['Ingresa la descripción de la actividad.'];
+    }
+
+    if (Object.keys(errores).length > 0) {
       throw new BadRequestException({
-        message: {
-          descripcion: ['Ingresa la descripción de la actividad.'],
-        },
+        message: errores,
         error: 'Bad Request',
         statusCode: 400,
       });
     }
+
+    return { nombre, descripcion };
+  }
+
+  async registrar(dto: CrearActividadDiariaDto, usuarioId: number) {
+    const { nombre, descripcion } = this.normalizarCamposActividad(dto);
 
     const fecha = this.parsearYValidarFecha(dto.fecha);
 
@@ -136,6 +153,7 @@ export class ActividadesDiariasService {
         usuarioId: usuario.id,
         empleadoId: usuario.empleadoId,
         fecha,
+        nombre,
         descripcion,
         observaciones,
       });
@@ -162,16 +180,7 @@ export class ActividadesDiariasService {
     dto: ActualizarActividadDiariaDto,
     usuarioId: number,
   ) {
-    const descripcion = dto.descripcion?.trim() ?? '';
-    if (!descripcion) {
-      throw new BadRequestException({
-        message: {
-          descripcion: ['Ingresa la descripción de la actividad.'],
-        },
-        error: 'Bad Request',
-        statusCode: 400,
-      });
-    }
+    const { nombre, descripcion } = this.normalizarCamposActividad(dto);
 
     const fecha = dto.fecha ? this.parsearYValidarFecha(dto.fecha) : undefined;
 
@@ -210,6 +219,7 @@ export class ActividadesDiariasService {
 
     return this.repo.actualizar(id, {
       fecha,
+      nombre,
       descripcion,
       observaciones,
     });
