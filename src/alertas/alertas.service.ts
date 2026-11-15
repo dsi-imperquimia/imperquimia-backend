@@ -54,6 +54,7 @@ export class AlertasService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AlertasService.name);
   private timer?: NodeJS.Timeout;
   private procesando = false;
+  private generacionEnSegundoPlano?: Promise<void>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -224,13 +225,25 @@ export class AlertasService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    void this.generarAutomaticamente();
-    this.timer = setInterval(() => void this.generarAutomaticamente(), 60_000);
+    this.programarGeneracion();
+    this.timer = setInterval(() => this.programarGeneracion(), 60_000);
     this.timer.unref();
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
+    await this.generacionEnSegundoPlano;
+  }
+
+  private programarGeneracion() {
+    if (this.generacionEnSegundoPlano) return;
+    const generacion = this.generarAutomaticamente();
+    this.generacionEnSegundoPlano = generacion;
+    void generacion.finally(() => {
+      if (this.generacionEnSegundoPlano === generacion) {
+        this.generacionEnSegundoPlano = undefined;
+      }
+    });
   }
 
   async crear(dto: CrearConfiguracionAlertaDto, usuarioId: number) {

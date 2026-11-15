@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { RegistrarMovimientoMaterialDto } from '../dto/registrar-movimiento-material.dto';
+import { RegistrarSalidaMaterialesProyectoDto } from '../dto/registrar-salida-materiales-proyecto.dto';
 import {
   InventarioPermissions,
   InventarioPermissionsGuard,
@@ -54,5 +55,23 @@ export class InventarioMaterialesController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.registrarSalida(dto, user.sub);
+  }
+
+  @Post('salidas/proyecto')
+  @InventarioPermissions('INVENTARIO_MATERIAL_EXIT')
+  registrarSalidasProyecto(
+    @Body() dto: RegistrarSalidaMaterialesProyectoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.registrarSalidasProyecto(dto, user.sub);
+  }
+
+  @Post('entradas/proyecto')
+  @InventarioPermissions('INVENTARIO_MATERIAL_ENTRY')
+  registrarDevolucionesProyecto(
+    @Body() dto: RegistrarSalidaMaterialesProyectoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.registrarDevolucionesProyecto(dto, user.sub);
   }
 }

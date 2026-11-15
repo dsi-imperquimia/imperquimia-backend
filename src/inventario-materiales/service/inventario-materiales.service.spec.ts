@@ -4,6 +4,7 @@ import { InventarioOperacionError } from '../repository/inventario-materiales.re
 import { InventarioMaterialesService } from './inventario-materiales.service';
 
 const uuid = '00000000-0000-4000-8000-000000000001';
+const uuid2 = '00000000-0000-4000-8000-000000000002';
 
 function movimiento(overrides: Record<string, unknown> = {}) {
   return {
@@ -24,7 +25,10 @@ describe('InventarioMaterialesService', () => {
   function setup() {
     const repo = {
       findMovimientoByKey: jest.fn(),
+      findMovimientosByKeys: jest.fn(),
       registrar: jest.fn(),
+      registrarSalidasProyecto: jest.fn(),
+      registrarDevolucionesProyecto: jest.fn(),
       findExistencias: jest.fn(),
       findMovimientos: jest.fn(),
     };
@@ -213,6 +217,124 @@ describe('InventarioMaterialesService', () => {
     const { service } = setup();
     expect(() => service.findMovimientos({ desde: '2026-02-30' })).toThrow(
       'Fecha inválida.',
+    );
+  });
+
+  it('registra varios materiales para un proyecto en una sola operación', async () => {
+    const { repo, service } = setup();
+    repo.findMovimientosByKeys.mockResolvedValue([]);
+    repo.registrarSalidasProyecto.mockResolvedValue([
+      movimiento({
+        claveOperacion: uuid,
+        tipo: 'TRASLADO',
+        motivo: MotivoMovimientoMaterial.USO_PROYECTO,
+      }),
+      movimiento({
+        claveOperacion: uuid2,
+        materialId: 4,
+        tipo: 'TRASLADO',
+        motivo: MotivoMovimientoMaterial.USO_PROYECTO,
+      }),
+    ]);
+
+    const result = await service.registrarSalidasProyecto(
+      {
+        proyectoId: 7,
+        materiales: [
+          { claveOperacion: uuid, materialId: 3, cantidad: 2 },
+          { claveOperacion: uuid2, materialId: 4, cantidad: 5 },
+        ],
+        observacion: 'Entrega semanal',
+      },
+      9,
+    );
+
+    expect(result.repetido).toBe(false);
+    expect(repo.registrarSalidasProyecto).toHaveBeenCalledWith(
+      7,
+      [
+        expect.objectContaining({
+          claveOperacion: uuid,
+          materialId: 3,
+          cantidad: expect.any(Prisma.Decimal),
+        }),
+        expect.objectContaining({
+          claveOperacion: uuid2,
+          materialId: 4,
+          cantidad: expect.any(Prisma.Decimal),
+        }),
+      ],
+      'Entrega semanal',
+      9,
+    );
+  });
+
+  it('rechaza materiales repetidos en un envío múltiple', async () => {
+    const { repo, service } = setup();
+
+    await expect(
+      service.registrarSalidasProyecto(
+        {
+          proyectoId: 7,
+          materiales: [
+            { claveOperacion: uuid, materialId: 3, cantidad: 2 },
+            { claveOperacion: uuid2, materialId: 3, cantidad: 1 },
+          ],
+        },
+        9,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(repo.registrarSalidasProyecto).not.toHaveBeenCalled();
+  });
+
+  it('devuelve varios materiales del proyecto en una sola operación', async () => {
+    const { repo, service } = setup();
+    repo.findMovimientosByKeys.mockResolvedValue([]);
+    repo.registrarDevolucionesProyecto.mockResolvedValue([
+      movimiento({
+        claveOperacion: uuid,
+        tipo: 'TRASLADO',
+        motivo: MotivoMovimientoMaterial.DEVOLUCION_PROYECTO,
+        origen: { proyectoId: 7 },
+      }),
+      movimiento({
+        claveOperacion: uuid2,
+        materialId: 4,
+        tipo: 'TRASLADO',
+        motivo: MotivoMovimientoMaterial.DEVOLUCION_PROYECTO,
+        origen: { proyectoId: 7 },
+      }),
+    ]);
+
+    const result = await service.registrarDevolucionesProyecto(
+      {
+        proyectoId: 7,
+        materiales: [
+          { claveOperacion: uuid, materialId: 3, cantidad: 2 },
+          { claveOperacion: uuid2, materialId: 4, cantidad: 1 },
+        ],
+        observacion: 'Retorno semanal',
+      },
+      9,
+    );
+
+    expect(result.repetido).toBe(false);
+    expect(repo.registrarDevolucionesProyecto).toHaveBeenCalledWith(
+      7,
+      [
+        expect.objectContaining({
+          claveOperacion: uuid,
+          materialId: 3,
+          cantidad: expect.any(Prisma.Decimal),
+        }),
+        expect.objectContaining({
+          claveOperacion: uuid2,
+          materialId: 4,
+          cantidad: expect.any(Prisma.Decimal),
+        }),
+      ],
+      'Retorno semanal',
+      9,
     );
   });
 });
