@@ -32,6 +32,67 @@ export class HerramientaRepository {
     });
   }
 
+  findAsignada(id: number, empleadoId: number) {
+    return this.prisma.herramienta.findFirst({
+      where: {
+        id,
+        proyecto: {
+          is: {
+            deletedAt: null,
+            OR: [
+              { jefeProyectoId: empleadoId },
+              { empleados: { some: { empleadoId, fechaRetiro: null } } },
+            ],
+          },
+        },
+      },
+      include: {
+        proyecto: true,
+        tipo: true,
+        movimientos: {
+          orderBy: { fechaMovimiento: 'desc' },
+          take: 10,
+          include: {
+            usuario: { select: { id: true, name: true, lastName: true } },
+            proyectoDestino: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async alcanceLectura(usuarioId: number) {
+    const permisoCompleto = {
+      permission: { name: 'HERRAMIENTA_READ', deletedAt: null },
+    };
+    const usuario = await this.prisma.user.findFirst({
+      where: { id: usuarioId, deletedAt: null },
+      select: {
+        empleadoId: true,
+        permissions: {
+          where: permisoCompleto,
+          select: { permissionId: true },
+        },
+        role: {
+          select: {
+            deletedAt: true,
+            permissions: {
+              where: permisoCompleto,
+              select: { permissionId: true },
+            },
+          },
+        },
+      },
+    });
+    return {
+      empleadoId: usuario?.empleadoId ?? null,
+      completo:
+        Boolean(usuario?.permissions.length) ||
+        (usuario?.role?.deletedAt === null &&
+          Boolean(usuario.role.permissions.length)),
+    };
+  }
+
   findByCodigoUnico(codigoUnico: string) {
     return this.prisma.herramienta.findUnique({ where: { codigoUnico } });
   }
@@ -64,7 +125,8 @@ export class HerramientaRepository {
       select: { roleId: true, empleadoId: true },
     });
     if (!usuario) return false;
-    if (usuario.roleId === 1 || usuario.empleadoId === null) return true;
+    if (usuario.roleId === 1) return true;
+    if (usuario.empleadoId === null) return false;
 
     const herramienta = await this.prisma.herramienta.findUnique({
       where: { id: herramientaId },

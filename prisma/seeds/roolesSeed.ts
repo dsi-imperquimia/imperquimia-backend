@@ -65,6 +65,14 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 28, name: 'HERRAMIENTA_DELETE', description: 'Permiso para eliminar herramientas' },
   ];
 
+  const herramientasAsignadasPermissions: PermissionType[] = [
+    {
+      id: 49,
+      name: 'HERRAMIENTA_ASIGNADA_READ',
+      description: 'Permiso para consultar herramientas de proyectos asignados',
+    },
+  ];
+
   const alertasPermissions: PermissionType[] = [
     {
       id: 32,
@@ -132,6 +140,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...proyectoPermissions,
     ...rolePermissions,
     ...herramientasPermissions,
+    ...herramientasAsignadasPermissions,
     ...alertasPermissions,
     ...inventarioMaterialesPermissions,
     ...actividadesDiariasPermissions,
@@ -202,6 +211,7 @@ export async function seedRoles(prisma: PrismaClient) {
           ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
         ),
         ...reportesDefectoPermissions,
+        ...herramientasAsignadasPermissions,
       ].map((p) => p.id),
       description: 'Técnico',
     },

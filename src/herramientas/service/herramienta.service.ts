@@ -66,8 +66,47 @@ export class HerramientaService {
     return herramientas.map((herramienta) => this.withTipoNombre(herramienta));
   }
 
+  async findAllParaUsuario(
+    usuarioId: number,
+    proyectoId?: number,
+    estado?: EstadoHerramienta,
+  ) {
+    const alcance = await this.repo.alcanceLectura(usuarioId);
+    if (alcance.completo) return this.findAll(proyectoId, estado);
+    if (alcance.empleadoId === null) return [];
+
+    const empleadoId = alcance.empleadoId;
+    const herramientas = await this.repo.findMany({
+      ...(proyectoId !== undefined ? { proyectoId } : {}),
+      ...(estado !== undefined ? { estado } : {}),
+      proyecto: {
+        is: {
+          deletedAt: null,
+          OR: [
+            { jefeProyectoId: empleadoId },
+            { empleados: { some: { empleadoId, fechaRetiro: null } } },
+          ],
+        },
+      },
+    });
+    return herramientas.map((herramienta) => this.withTipoNombre(herramienta));
+  }
+
   async findOne(id: number) {
     const herramienta = await this.repo.findUnique(id);
+    if (!herramienta) {
+      throw new NotFoundException(`Herramienta #${id} no encontrada`);
+    }
+    return this.withTipoNombre(herramienta);
+  }
+
+  async findOneParaUsuario(id: number, usuarioId: number) {
+    const alcance = await this.repo.alcanceLectura(usuarioId);
+    if (alcance.completo) return this.findOne(id);
+    const herramienta =
+      alcance.empleadoId === null
+        ? null
+        : await this.repo.findAsignada(id, alcance.empleadoId);
     if (!herramienta) {
       throw new NotFoundException(`Herramienta #${id} no encontrada`);
     }

@@ -36,19 +36,23 @@ export class HerramientaController {
   // GET /herramientas?proyectoId=3
   // GET /herramientas?estado=DANADA
   @Get()
-  @CatalogPermissions('HERRAMIENTA_READ')
+  @CatalogPermissions('HERRAMIENTA_READ', 'HERRAMIENTA_ASIGNADA_READ')
   findAll(
+    @CurrentUser() user: JwtPayload,
     @Query('proyectoId') proyectoId?: string,
     @Query('estado') estado?: EstadoHerramienta, //  1. Captura el ?estado de la URL
   ) {
     const id = proyectoId ? parseInt(proyectoId, 10) : undefined;
-    return this.herramientaService.findAll(id, estado); //  2. Pasa como segundo argumento
+    return this.herramientaService.findAllParaUsuario(user.sub, id, estado);
   }
 
   @Get(':id')
-  @CatalogPermissions('HERRAMIENTA_READ')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.herramientaService.findOne(id);
+  @CatalogPermissions('HERRAMIENTA_READ', 'HERRAMIENTA_ASIGNADA_READ')
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.herramientaService.findOneParaUsuario(id, user.sub);
   }
 
   @Get(':id/reportes-defecto')
