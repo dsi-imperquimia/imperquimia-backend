@@ -1,8 +1,11 @@
+import { PrismaService } from '@/prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
+import { ActividadesDiariasModule } from '../actividades-diarias.module';
 import {
   ActividadesEvidenciasService,
   type ArchivoImagenSubido,
@@ -211,5 +214,18 @@ describe('ActividadesEvidenciasService (GPRIMPER-53)', () => {
     await expect(service.obtenerArchivo(12, 999, 5)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('resuelve todas las dependencias del módulo en el contenedor de NestJS', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [ActividadesDiariasModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({})
+      .compile();
+
+    const service = moduleRef.get(ActividadesEvidenciasService);
+    expect(service).toBeInstanceOf(ActividadesEvidenciasService);
+    await moduleRef.close();
   });
 });

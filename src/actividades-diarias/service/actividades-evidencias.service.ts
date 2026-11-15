@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -11,6 +13,8 @@ import * as path from 'node:path';
 import { ActividadesDiariasRepository } from '../repository/actividades-diarias.repository';
 import { ActividadesDiariasService } from './actividades-diarias.service';
 
+export const ACTIVIDADES_EVIDENCIAS_UPLOADS_DIR =
+  'ACTIVIDADES_EVIDENCIAS_UPLOADS_DIR';
 export const MAX_TAMANO_IMAGEN_BYTES = 10 * 1024 * 1024;
 export const MAX_ARCHIVOS_POR_SUBIDA = 10;
 
@@ -72,6 +76,8 @@ export class ActividadesEvidenciasService {
   constructor(
     private readonly repo: ActividadesDiariasRepository,
     private readonly actividadesService: ActividadesDiariasService,
+    @Optional()
+    @Inject(ACTIVIDADES_EVIDENCIAS_UPLOADS_DIR)
     uploadsDir?: string,
   ) {
     this.uploadsRoot = path.resolve(
