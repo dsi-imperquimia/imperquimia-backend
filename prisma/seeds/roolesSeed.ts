@@ -102,6 +102,13 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 38, name: 'ACTIVIDAD_UPDATE', description: 'Permiso para editar actividades diarias' },
   ];
 
+  // prettier-ignore
+  const incidenciasPermissions: PermissionType[] = [
+    { id: 39, name: 'INCIDENCIA_CREATE', description: 'Permiso para registrar incidencias en obra' },
+    { id: 40, name: 'INCIDENCIA_READ', description: 'Permiso para consultar incidencias en obra' },
+    { id: 41, name: 'INCIDENCIA_UPDATE', description: 'Permiso para editar incidencias y cambiar su estado' },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
@@ -113,6 +120,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...alertasPermissions,
     ...inventarioMaterialesPermissions,
     ...actividadesDiariasPermissions,
+    ...incidenciasPermissions,
   ];
 
   for (const permission of permissions) {
@@ -149,6 +157,7 @@ export async function seedRoles(prisma: PrismaClient) {
           ['ALERTA_CREATE', 'ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
         ),
         ...actividadesDiariasPermissions,
+        ...incidenciasPermissions,
       ].map((p) => p.id),
       description: 'Jefe de proyecto',
     },
