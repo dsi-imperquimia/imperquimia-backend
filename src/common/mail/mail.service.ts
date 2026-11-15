@@ -5,6 +5,9 @@ export interface CorreoEnviar {
   to: string;
   subject: string;
   text: string;
+  // Versión HTML opcional; `text` siempre se manda como respaldo para
+  // clientes que no renderizan HTML o bloquean imágenes/estilos.
+  html?: string;
 }
 
 // Envía correo por SMTP (Mailtrap u otro proveedor) usando las variables de

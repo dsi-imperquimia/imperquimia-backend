@@ -280,7 +280,10 @@ describe('ProyectoService: reasignar empleado entre proyectos', () => {
 
     expect(repo.reasignarEmpleado).toHaveBeenCalledWith(9, 10, 1);
     expect(mail.enviar).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'jefe@test.com' }),
+      expect.objectContaining({
+        to: 'jefe@test.com',
+        html: expect.stringContaining('Ana'),
+      }),
     );
     expect(repo.crearNotificacionReasignacion).toHaveBeenCalledWith(
       expect.objectContaining({ proyectoId: 9, destinatarioId: 3, creadaPorId: 7 }),

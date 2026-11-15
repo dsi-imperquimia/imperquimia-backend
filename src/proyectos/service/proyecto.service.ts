@@ -1,3 +1,4 @@
+import { correoReasignacionHtml } from '@/common/mail/mail-templates';
 import { MailService } from '@/common/mail/mail.service';
 import { Prisma } from '@gen/prisma/client';
 import {
@@ -337,6 +338,11 @@ export class ProyectoService {
         to: user.email,
         subject: `Técnico reasignado: ${nombreOrigen}`,
         text: descripcion,
+        html: correoReasignacionHtml({
+          nombreEmpleado,
+          nombreOrigen,
+          nombreDestino,
+        }),
       }),
       this.repo.crearNotificacionReasignacion({
         proyectoId: origenId,
