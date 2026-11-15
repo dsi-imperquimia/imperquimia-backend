@@ -174,6 +174,17 @@ export async function seedRoles(prisma: PrismaClient) {
       create: role,
     });
 
+    if (role.id === 3) {
+      await prisma.rolePermission.deleteMany({
+        where: {
+          roleId: role.id,
+          permissionId: {
+            in: actividadesDiariasPermissions.map((p) => p.id),
+          },
+        },
+      });
+    }
+
     if (permissionIds.length > 0) {
       await prisma.rolePermission.createMany({
         data: permissionIds.map((permissionId) => ({
