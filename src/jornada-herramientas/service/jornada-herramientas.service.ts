@@ -1,4 +1,4 @@
-import { Prisma } from '@gen/prisma/client';
+import { AreaMovimiento, Prisma } from '@gen/prisma/client';
 import {
   BadRequestException,
   ConflictException,
@@ -7,8 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ActividadesDiariasService } from '@/actividades-diarias/service/actividades-diarias.service';
+import { MovimientoService } from '@/movimientos/service/movimiento.service';
 import { AbrirJornadaHerramientasDto } from '../dto/abrir-jornada-herramientas.dto';
 import { VerificarItemInicioDto } from '../dto/verificar-item-inicio.dto';
+import { VerificarItemRetornoDto } from '../dto/verificar-item-retorno.dto';
 import { JornadaHerramientasRepository } from '../repository/jornada-herramientas.repository';
 
 type UsuarioAcceso = {
@@ -21,6 +23,7 @@ export class JornadaHerramientasService {
   constructor(
     private readonly repo: JornadaHerramientasRepository,
     private readonly actividades: ActividadesDiariasService,
+    private readonly movimientos: MovimientoService,
   ) {}
 
   /** Proyectos en los que el usuario puede verificar herramientas (mismo criterio que actividades/incidencias). */
@@ -205,6 +208,101 @@ export class JornadaHerramientasService {
       });
     }
     return this.repo.confirmarInicio(jornadaId);
+  }
+
+  async verificarItemRetorno(
+    jornadaId: number,
+    itemId: number,
+    dto: VerificarItemRetornoDto,
+    usuarioId: number,
+  ) {
+    const jornada = await this.findOne(jornadaId, usuarioId);
+    if (!jornada.verificacionInicioAt) {
+      throw new BadRequestException(
+        'Primero debes confirmar la verificación de inicio de esta jornada.',
+      );
+    }
+    if (jornada.verificacionRetornoAt) {
+      throw new ConflictException(
+        'El retorno de esta jornada ya fue confirmado.',
+      );
+    }
+    const item = jornada.items.find((i) => i.id === itemId);
+    if (!item) {
+      throw new NotFoundException(
+        'Esa herramienta no pertenece a este checklist.',
+      );
+    }
+
+    const observacion = dto.observacion?.trim() || null;
+    if (dto.estado === 'AUSENTE' && !observacion) {
+      throw new BadRequestException(
+        'Indica una observación al marcar la herramienta como no retornada.',
+      );
+    }
+
+    let incidenciaId: number | null = item.incidenciaId;
+    if (dto.estado === 'AUSENTE') {
+      const incidencia = await this.repo.crearIncidenciaAusencia({
+        proyectoId: jornada.proyectoId,
+        usuarioId,
+        titulo: `Herramienta no retornada: ${item.herramienta.nombre} (${item.herramienta.codigoUnico})`,
+        descripcion: observacion!,
+        fecha: jornada.fecha,
+        prioridad: 'ALTA',
+      });
+      incidenciaId = incidencia.id;
+    } else {
+      await this.movimientos.create(
+        {
+          herramientaId: item.herramienta.id,
+          origen: AreaMovimiento.PROYECTO,
+          destino: AreaMovimiento.BODEGA,
+          observaciones: `Retorno confirmado en checklist de jornada #${jornadaId}.`,
+        },
+        usuarioId,
+      );
+    }
+
+    await this.repo.actualizarItemRetorno(
+      itemId,
+      dto.estado,
+      observacion,
+      incidenciaId,
+    );
+    return this.findOne(jornadaId, usuarioId);
+  }
+
+  async confirmarRetorno(jornadaId: number, usuarioId: number) {
+    const jornada = await this.findOne(jornadaId, usuarioId);
+    if (!jornada.verificacionInicioAt) {
+      throw new BadRequestException(
+        'Primero debes confirmar la verificación de inicio de esta jornada.',
+      );
+    }
+    if (jornada.verificacionRetornoAt) {
+      throw new ConflictException(
+        'El retorno de esta jornada ya fue confirmado.',
+      );
+    }
+    const pendientes = jornada.items.filter(
+      (i) => i.estadoRetorno === 'PENDIENTE',
+    );
+    if (pendientes.length > 0) {
+      throw new BadRequestException({
+        message:
+          'Hay herramientas sin confirmar su retorno. Revisa el checklist antes de cerrar la conciliación.',
+        herramientasPendientes: pendientes.map((i) => ({
+          itemId: i.id,
+          herramientaId: i.herramienta.id,
+          codigoUnico: i.herramienta.codigoUnico,
+          nombre: i.herramienta.nombre,
+        })),
+        error: 'Bad Request',
+        statusCode: 400,
+      });
+    }
+    return this.repo.confirmarRetorno(jornadaId);
   }
 
   private async obtenerUsuario(usuarioId: number) {

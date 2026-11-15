@@ -1,4 +1,5 @@
 import { ActividadesDiariasModule } from '@/actividades-diarias/actividades-diarias.module';
+import { MovimientosModule } from '@/movimientos/movimientos.module';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { Module } from '@nestjs/common';
 import { JornadaHerramientasController } from './controllers/jornada-herramientas.controller';
@@ -7,7 +8,7 @@ import { JornadaHerramientasRepository } from './repository/jornada-herramientas
 import { JornadaHerramientasService } from './service/jornada-herramientas.service';
 
 @Module({
-  imports: [PrismaModule, ActividadesDiariasModule],
+  imports: [PrismaModule, ActividadesDiariasModule, MovimientosModule],
   controllers: [JornadaHerramientasController],
   providers: [
     JornadaHerramientasService,

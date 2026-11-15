@@ -1,6 +1,10 @@
 import { PrismaService } from '@/prisma/prisma.service';
-import { EstadoVerificacionHerramienta } from '@gen/prisma/client';
+import {
+  EstadoVerificacionHerramienta,
+  PrioridadIncidencia,
+} from '@gen/prisma/client';
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
 const includeDetalle = {
   proyecto: {
@@ -123,6 +127,57 @@ export class JornadaHerramientasRepository {
       where: { id },
       data: { verificacionInicioAt: new Date() },
       include: includeDetalle,
+    });
+  }
+
+  actualizarItemRetorno(
+    itemId: number,
+    estado: EstadoVerificacionHerramienta,
+    observacion: string | null,
+    incidenciaId: number | null,
+  ) {
+    return this.prisma.jornadaHerramientaItem.update({
+      where: { id: itemId },
+      data: { estadoRetorno: estado, observacionRetorno: observacion, incidenciaId },
+    });
+  }
+
+  confirmarRetorno(id: number) {
+    return this.prisma.jornadaHerramientas.update({
+      where: { id },
+      data: { verificacionRetornoAt: new Date() },
+      include: includeDetalle,
+    });
+  }
+
+  /** GPRCIMPER-110: incidencia automática cuando una herramienta no retorna. */
+  crearIncidenciaAusencia(datos: {
+    proyectoId: number;
+    usuarioId: number;
+    titulo: string;
+    descripcion: string;
+    fecha: Date;
+    prioridad: PrioridadIncidencia;
+  }) {
+    return this.prisma.incidencia.create({
+      data: {
+        claveOperacion: randomUUID(),
+        proyectoId: datos.proyectoId,
+        usuarioId: datos.usuarioId,
+        titulo: datos.titulo,
+        descripcion: datos.descripcion,
+        fecha: datos.fecha,
+        prioridad: datos.prioridad,
+        historial: {
+          create: {
+            usuarioId: datos.usuarioId,
+            estadoAnterior: null,
+            estadoNuevo: 'ABIERTA',
+            comentario:
+              'Incidencia registrada automáticamente: herramienta no retornada al finalizar la jornada.',
+          },
+        },
+      },
     });
   }
 }

@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AbrirJornadaHerramientasDto } from '../dto/abrir-jornada-herramientas.dto';
 import { VerificarItemInicioDto } from '../dto/verificar-item-inicio.dto';
+import { VerificarItemRetornoDto } from '../dto/verificar-item-retorno.dto';
 import {
   JornadaHerramientasPermissions,
   JornadaHerramientasPermissionsGuard,
@@ -79,5 +80,25 @@ export class JornadaHerramientasController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.confirmarInicio(id, user.sub);
+  }
+
+  @Patch(':id/items/:itemId/retorno')
+  @JornadaHerramientasPermissions('JORNADA_HERRAMIENTA_VERIFY')
+  verificarItemRetorno(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Body() dto: VerificarItemRetornoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.verificarItemRetorno(id, itemId, dto, user.sub);
+  }
+
+  @Patch(':id/confirmar-retorno')
+  @JornadaHerramientasPermissions('JORNADA_HERRAMIENTA_VERIFY')
+  confirmarRetorno(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.confirmarRetorno(id, user.sub);
   }
 }

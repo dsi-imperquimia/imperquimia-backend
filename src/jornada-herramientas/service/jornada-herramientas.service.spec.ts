@@ -31,16 +31,41 @@ function jornadaMock(overrides: Record<string, unknown> = {}) {
         herramienta: { id: 1, codigoUnico: 'HERR-0001', nombre: 'Taladro' },
         estadoInicio: 'PENDIENTE',
         estadoRetorno: 'PENDIENTE',
+        incidenciaId: null,
       },
       {
         id: 101,
         herramienta: { id: 2, codigoUnico: 'HERR-0002', nombre: 'Sierra' },
         estadoInicio: 'PENDIENTE',
         estadoRetorno: 'PENDIENTE',
+        incidenciaId: null,
       },
     ],
     ...overrides,
   };
+}
+
+function jornadaConfirmadaMock(overrides: Record<string, unknown> = {}) {
+  return jornadaMock({
+    verificacionInicioAt: new Date('2026-11-10T08:00:00.000Z'),
+    items: [
+      {
+        id: 100,
+        herramienta: { id: 1, codigoUnico: 'HERR-0001', nombre: 'Taladro' },
+        estadoInicio: 'VERIFICADA',
+        estadoRetorno: 'PENDIENTE',
+        incidenciaId: null,
+      },
+      {
+        id: 101,
+        herramienta: { id: 2, codigoUnico: 'HERR-0002', nombre: 'Sierra' },
+        estadoInicio: 'VERIFICADA',
+        estadoRetorno: 'PENDIENTE',
+        incidenciaId: null,
+      },
+    ],
+    ...overrides,
+  });
 }
 
 const dtoBase = {
@@ -63,13 +88,18 @@ describe('JornadaHerramientasService', () => {
       crear: jest.fn(),
       actualizarItemInicio: jest.fn(),
       confirmarInicio: jest.fn(),
+      actualizarItemRetorno: jest.fn(),
+      confirmarRetorno: jest.fn(),
+      crearIncidenciaAusencia: jest.fn(),
     };
     const actividades = { findProyectosDisponibles: jest.fn() };
+    const movimientos = { create: jest.fn() };
     const service = new JornadaHerramientasService(
       repo as any,
       actividades as any,
+      movimientos as any,
     );
-    return { repo, service, actividades };
+    return { repo, service, actividades, movimientos };
   }
 
   describe('abrir', () => {
@@ -302,6 +332,158 @@ describe('JornadaHerramientasService', () => {
       );
 
       await expect(service.confirmarInicio(1, jefe.id)).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+  });
+
+  describe('verificarItemRetorno', () => {
+    it('rechaza si la jornada todavía no confirmó la verificación de inicio', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(jornadaMock());
+
+      await expect(
+        service.verificarItemRetorno(1, 100, { estado: 'VERIFICADA' }, jefe.id),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('al verificar el retorno, mueve la herramienta de PROYECTO a BODEGA', async () => {
+      const { repo, service, movimientos } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(jornadaConfirmadaMock());
+
+      await service.verificarItemRetorno(
+        1,
+        100,
+        { estado: 'VERIFICADA' },
+        jefe.id,
+      );
+
+      expect(movimientos.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          herramientaId: 1,
+          origen: 'PROYECTO',
+          destino: 'BODEGA',
+        }),
+        jefe.id,
+      );
+      expect(repo.actualizarItemRetorno).toHaveBeenCalledWith(
+        100,
+        'VERIFICADA',
+        null,
+        null,
+      );
+      expect(repo.crearIncidenciaAusencia).not.toHaveBeenCalled();
+    });
+
+    it('al marcar ausente, exige observación y crea una incidencia automática', async () => {
+      const { repo, service, movimientos } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(jornadaConfirmadaMock());
+
+      await expect(
+        service.verificarItemRetorno(1, 100, { estado: 'AUSENTE' }, jefe.id),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      repo.crearIncidenciaAusencia.mockResolvedValue({ id: 55 });
+      await service.verificarItemRetorno(
+        1,
+        100,
+        { estado: 'AUSENTE', observacion: 'No se encontró en bodega.' },
+        jefe.id,
+      );
+
+      expect(repo.crearIncidenciaAusencia).toHaveBeenCalledWith(
+        expect.objectContaining({
+          proyectoId: 10,
+          usuarioId: jefe.id,
+          descripcion: 'No se encontró en bodega.',
+          prioridad: 'ALTA',
+        }),
+      );
+      expect(repo.actualizarItemRetorno).toHaveBeenCalledWith(
+        100,
+        'AUSENTE',
+        'No se encontró en bodega.',
+        55,
+      );
+      expect(movimientos.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza verificar el retorno si ya fue confirmado', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(
+        jornadaConfirmadaMock({ verificacionRetornoAt: new Date() }),
+      );
+
+      await expect(
+        service.verificarItemRetorno(1, 100, { estado: 'VERIFICADA' }, jefe.id),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('confirmarRetorno', () => {
+    it('bloquea el cierre si quedan herramientas sin confirmar retorno', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(jornadaConfirmadaMock());
+
+      await expect(service.confirmarRetorno(1, jefe.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(repo.confirmarRetorno).not.toHaveBeenCalled();
+    });
+
+    it('confirma cuando todos los items resolvieron su retorno', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(
+        jornadaConfirmadaMock({
+          items: [
+            {
+              id: 100,
+              herramienta: { id: 1, codigoUnico: 'HERR-0001', nombre: 'Taladro' },
+              estadoInicio: 'VERIFICADA',
+              estadoRetorno: 'VERIFICADA',
+              incidenciaId: null,
+            },
+            {
+              id: 101,
+              herramienta: { id: 2, codigoUnico: 'HERR-0002', nombre: 'Sierra' },
+              estadoInicio: 'VERIFICADA',
+              estadoRetorno: 'AUSENTE',
+              incidenciaId: 55,
+            },
+          ],
+        }),
+      );
+      repo.confirmarRetorno.mockResolvedValue(jornadaConfirmadaMock());
+
+      await service.confirmarRetorno(1, jefe.id);
+
+      expect(repo.confirmarRetorno).toHaveBeenCalledWith(1);
+    });
+
+    it('rechaza confirmar el retorno antes de confirmar el inicio', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(jornadaMock());
+
+      await expect(service.confirmarRetorno(1, jefe.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('rechaza confirmar el retorno dos veces', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(
+        jornadaConfirmadaMock({ verificacionRetornoAt: new Date() }),
+      );
+
+      await expect(service.confirmarRetorno(1, jefe.id)).rejects.toBeInstanceOf(
         ConflictException,
       );
     });
