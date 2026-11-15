@@ -11,6 +11,7 @@ import {
 import { ProyectoService } from '../service/proyecto.service';
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
+import { CancelarProyectoDto } from '../dto/cancelar-proyecto.dto';
 
 @Controller('proyectos')
 export class ProyectoController {
@@ -61,7 +62,10 @@ export class ProyectoController {
   }
 
   @Patch(':id/cancelar')
-  cancelar(@Param('id', ParseIntPipe) id: number) {
-    return this.proyectoService.cancelar(id);
+  cancelar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelarProyectoDto,
+  ) {
+    return this.proyectoService.cancelar(id, dto.motivo);
   }
 }
