@@ -376,6 +376,7 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
         ubicacion: 'San Salvador',
         jefeProyectoId: 1,
         jefeProyecto: { nombreCompleto: 'Ana Jefa', user: { email: 'ana@test.com' } },
+        empleados: [],
       },
     });
     const detalle = await service.miAsignacionDetalle(1, 9);
@@ -398,10 +399,20 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
         nombre: 'Obra A',
         jefeProyectoId: 5,
         jefeProyecto: { nombreCompleto: 'Yo mismo', user: { email: null } },
+        empleados: [
+          { empleadoId: 5, empleado: { nombreCompleto: 'Yo mismo', cargo: null } },
+          {
+            empleadoId: 7,
+            empleado: { nombreCompleto: 'Otro Técnico', cargo: { nombre: 'Técnico de Campo' } },
+          },
+        ],
       },
     });
     const detalle = await service.miAsignacionDetalle(1, 9);
     expect(detalle.esJefe).toBe(true);
+    expect(detalle.equipo).toEqual([
+      { nombreCompleto: 'Otro Técnico', cargo: 'Técnico de Campo' },
+    ]);
   });
 
   it('da null como jefe de proyecto si no hay uno asignado', async () => {
@@ -409,7 +420,7 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
     repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
     repo.findMiAsignacionDetalle.mockResolvedValue({
       vistaAt: null,
-      proyecto: { id: 9, nombre: 'Obra A', jefeProyecto: null },
+      proyecto: { id: 9, nombre: 'Obra A', jefeProyecto: null, empleados: [] },
     });
     const detalle = await service.miAsignacionDetalle(1, 9);
     expect(detalle.jefeProyecto).toBeNull();
@@ -462,6 +473,9 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
       id: 9,
       nombre: 'Obra A',
       jefeProyecto: { nombreCompleto: 'Carlos Jefe', user: { email: 'carlos@test.com' } },
+      empleados: [
+        { empleadoId: 3, empleado: { nombreCompleto: 'José Técnico', cargo: null } },
+      ],
     });
     const detalle = await service.miAsignacionDetalle(1, 9);
     expect(detalle).toMatchObject({
@@ -470,6 +484,7 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
       vistaAt: null,
       esJefe: true,
       jefeProyecto: { nombreCompleto: 'Carlos Jefe', email: 'carlos@test.com' },
+      equipo: [{ nombreCompleto: 'José Técnico', cargo: null }],
     });
   });
 
@@ -477,7 +492,12 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
     const { repo, service } = setup();
     repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
     repo.findMiAsignacionDetalle.mockResolvedValue(null);
-    repo.findMiProyectoComoJefe.mockResolvedValue({ id: 9, nombre: 'Obra A', jefeProyecto: null });
+    repo.findMiProyectoComoJefe.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra A',
+      jefeProyecto: null,
+      empleados: [],
+    });
     await expect(service.marcarAsignacionVista(1, 9)).resolves.toEqual({ vista: true });
     expect(repo.marcarAsignacionVista).not.toHaveBeenCalled();
   });

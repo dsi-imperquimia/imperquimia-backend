@@ -12,6 +12,20 @@ const empleadoInclude = {
   habilidades: { include: { habilidad: true } },
 } satisfies Prisma.EmpleadoInclude;
 
+// Técnicos con asignación vigente, para que "Mis proyectos" muestre con
+// quién más se trabaja en la obra (GPRCIMPER-122).
+const EQUIPO_SELECT = {
+  empleados: {
+    where: { fechaRetiro: null },
+    select: {
+      empleadoId: true,
+      empleado: {
+        select: { nombreCompleto: true, cargo: { select: { nombre: true } } },
+      },
+    },
+  },
+} satisfies Prisma.ProyectoSelect;
+
 // Repositorio para la tabla `empleados`
 // Maneja todas las operaciones CRUD con la BD usando Prisma
 @Injectable()
@@ -125,6 +139,8 @@ export class EmpleadoRepository {
         ubicacion: true,
         descripcion: true,
         estado: true,
+        cliente: true,
+        tipoObra: true,
         fechaInicio: true,
         fechaFin: true,
         jefeProyecto: {
@@ -133,6 +149,7 @@ export class EmpleadoRepository {
             user: { select: { email: true } },
           },
         },
+        ...EQUIPO_SELECT,
       },
     });
   }
@@ -156,6 +173,8 @@ export class EmpleadoRepository {
             ubicacion: true,
             descripcion: true,
             estado: true,
+            cliente: true,
+            tipoObra: true,
             fechaInicio: true,
             fechaFin: true,
             jefeProyectoId: true,
@@ -165,6 +184,7 @@ export class EmpleadoRepository {
                 user: { select: { email: true } },
               },
             },
+            ...EQUIPO_SELECT,
           },
         },
       },

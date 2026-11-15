@@ -26,6 +26,11 @@ export interface JefeProyectoInfo {
   user: { email: string | null } | null;
 }
 
+export interface EquipoFila {
+  empleadoId: number;
+  empleado: { nombreCompleto: string; cargo: { nombre: string } | null };
+}
+
 export type Prioridad = 'ALTA' | 'MEDIA' | 'BAJA';
 
 export type ItemMiAsignacion = ProyectoBasico & {
@@ -64,6 +69,17 @@ function aItemAsignacion(
     esJefe,
     prioridad: calcularPrioridad(proyecto.fechaInicio, hoy),
   };
+}
+
+// Resto del equipo asignado a la obra, sin incluirse a uno mismo
+// (GPRCIMPER-122).
+function aEquipo(empleados: EquipoFila[], empleadoId: number) {
+  return empleados
+    .filter((fila) => fila.empleadoId !== empleadoId)
+    .map((fila) => ({
+      nombreCompleto: fila.empleado.nombreCompleto,
+      cargo: fila.empleado.cargo?.nombre ?? null,
+    }));
 }
 
 function aContactoJefe(jefeProyecto: JefeProyectoInfo | null) {
@@ -220,7 +236,8 @@ export class EmpleadoService {
     );
     if (asignacion) {
       const { proyecto, vistaAt } = asignacion;
-      const { jefeProyecto, jefeProyectoId, ...datosProyecto } = proyecto;
+      const { jefeProyecto, jefeProyectoId, empleados, ...datosProyecto } =
+        proyecto;
       return {
         ...datosProyecto,
         vista: vistaAt !== null,
@@ -228,6 +245,7 @@ export class EmpleadoService {
         esJefe: jefeProyectoId === empleadoId,
         prioridad: calcularPrioridad(datosProyecto.fechaInicio, hoy),
         jefeProyecto: aContactoJefe(jefeProyecto),
+        equipo: aEquipo(empleados, empleadoId),
       };
     }
 
@@ -240,7 +258,7 @@ export class EmpleadoService {
         'No tienes una asignación vigente en este proyecto.',
       );
     }
-    const { jefeProyecto, ...datosProyecto } = proyectoComoJefe;
+    const { jefeProyecto, empleados, ...datosProyecto } = proyectoComoJefe;
     return {
       ...datosProyecto,
       vista: true,
@@ -248,6 +266,7 @@ export class EmpleadoService {
       esJefe: true,
       prioridad: calcularPrioridad(datosProyecto.fechaInicio, hoy),
       jefeProyecto: aContactoJefe(jefeProyecto),
+      equipo: aEquipo(empleados, empleadoId),
     };
   }
 
