@@ -1,3 +1,4 @@
+import { correoReasignacionHtml } from '@/common/mail/mail-templates';
 import { MailService } from '@/common/mail/mail.service';
 import { Prisma } from '@gen/prisma/client';
 import {
@@ -279,6 +280,78 @@ export class ProyectoService {
         }),
       ),
     );
+  }
+
+  async reasignarEmpleado(
+    origenId: number,
+    destinoId: number,
+    empleadoId: number,
+    usuarioId: number,
+  ) {
+    if (origenId === destinoId) {
+      throw new BadRequestException(
+        'El proyecto de origen y destino deben ser diferentes.',
+      );
+    }
+    const [origen, destino] = await Promise.all([
+      this.findOne(origenId),
+      this.findOne(destinoId),
+    ]);
+    if (destino.estado === 'CANCELADO') {
+      throw new ConflictException(
+        'No se puede asignar empleados a un proyecto cancelado.',
+      );
+    }
+    const asignacion = await this.repo.asignacionVigente(origenId, empleadoId);
+    if (!asignacion) {
+      throw new NotFoundException(
+        'El empleado no tiene una asignación activa en el proyecto de origen.',
+      );
+    }
+    await this.repo.reasignarEmpleado(origenId, destinoId, empleadoId);
+    await this.notificarReasignacion(
+      origen.id,
+      origen.nombre,
+      destino.nombre,
+      asignacion.empleado.nombreCompleto,
+      usuarioId,
+    );
+    return { message: 'Empleado reasignado correctamente.' };
+  }
+
+  // Avisa al jefe del proyecto de origen, por correo y por sistema, que
+  // perdió un técnico por una reasignación urgente (GPRCIMPER-84). No
+  // bloquea la reasignación si el proyecto no tiene jefe o si falla el aviso.
+  private async notificarReasignacion(
+    origenId: number,
+    nombreOrigen: string,
+    nombreDestino: string,
+    nombreEmpleado: string,
+    usuarioId: number,
+  ) {
+    const jefe = await this.repo.findJefeProyecto(origenId);
+    const user = jefe?.jefeProyecto?.user;
+    if (!user) return;
+    const descripcion = `${nombreEmpleado} fue reasignado del proyecto "${nombreOrigen}" al proyecto "${nombreDestino}".`;
+    await Promise.all([
+      this.mail.enviar({
+        to: user.email,
+        subject: `Técnico reasignado: ${nombreOrigen}`,
+        text: descripcion,
+        html: correoReasignacionHtml({
+          nombreEmpleado,
+          nombreOrigen,
+          nombreDestino,
+        }),
+      }),
+      this.repo.crearNotificacionReasignacion({
+        proyectoId: origenId,
+        destinatarioId: user.id,
+        creadaPorId: usuarioId,
+        nombreProyecto: nombreOrigen,
+        descripcion,
+      }),
+    ]);
   }
 
   async asignarEmpleado(proyectoId: number, empleadoId: number) {

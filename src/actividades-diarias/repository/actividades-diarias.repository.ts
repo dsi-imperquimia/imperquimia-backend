@@ -48,6 +48,12 @@ const includeActividad = {
     orderBy: { createdAt: 'asc' as const },
     select: includeEvidenciaPublica,
   },
+  // Incidencias vinculadas a la jornada (GPRCIMPER-142)
+  incidencias: {
+    where: { deletedAt: null },
+    orderBy: { id: 'asc' as const },
+    select: { id: true, titulo: true, prioridad: true, estado: true },
+  },
 };
 
 @Injectable()
