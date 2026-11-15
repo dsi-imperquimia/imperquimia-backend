@@ -4,6 +4,7 @@ import { ActividadesDiariasController } from './controllers/actividades-diarias.
 import { ActividadesPermissionsGuard } from './guards/actividades-permissions.guard';
 import { ActividadesDiariasRepository } from './repository/actividades-diarias.repository';
 import { ActividadesDiariasService } from './service/actividades-diarias.service';
+import { ActividadesExportService } from './service/actividades-export.service';
 
 @Module({
   imports: [PrismaModule],
@@ -11,6 +12,7 @@ import { ActividadesDiariasService } from './service/actividades-diarias.service
   providers: [
     ActividadesDiariasRepository,
     ActividadesDiariasService,
+    ActividadesExportService,
     ActividadesPermissionsGuard,
   ],
   exports: [ActividadesDiariasService],

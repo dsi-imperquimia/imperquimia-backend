@@ -574,4 +574,72 @@ describe('ActividadesDiariasService', () => {
       expect(repo.actualizar).not.toHaveBeenCalled();
     });
   });
+
+  describe('filtrado por rango de fechas (GPRIMPER-43)', () => {
+    it('pasa el rango UTC al consultar actividades accesibles y por proyecto', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findAccesibles.mockResolvedValue([actividadMock()]);
+      repo.findProyecto.mockResolvedValue({
+        id: 10,
+        nombre: 'Edificio Central',
+        estado: 'ACTIVO',
+        jefeProyectoId: 7,
+      });
+      repo.findPorProyecto.mockResolvedValue([actividadMock()]);
+
+      await service.findActividades(5, undefined, '2026-11-07', '2026-11-14');
+      expect(repo.findAccesibles).toHaveBeenCalledWith(7, false, {
+        fechaInicio: new Date('2026-11-07T00:00:00.000Z'),
+        fechaFin: new Date('2026-11-14T00:00:00.000Z'),
+      });
+
+      const paraExportar = await service.findParaExportar(
+        5,
+        10,
+        '2026-11-07',
+        undefined,
+      );
+      expect(repo.findPorProyecto).toHaveBeenCalledWith(10, {
+        fechaInicio: new Date('2026-11-07T00:00:00.000Z'),
+      });
+      expect(paraExportar.filtros).toEqual({
+        proyectoNombre: 'Edificio Central',
+        fechaInicio: '2026-11-07',
+        fechaFin: undefined,
+      });
+    });
+
+    it('rechaza con 400 cuando fechaInicio es mayor que fechaFin', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+
+      await expect(
+        service.findActividades(5, undefined, '2026-11-14', '2026-11-01'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.findAccesibles).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con 400 cuando una fecha del filtro no es válida', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+
+      await expect(
+        service.findActividades(5, undefined, '2026-02-30', '2026-11-14'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.findAccesibles).not.toHaveBeenCalled();
+    });
+  });
 });

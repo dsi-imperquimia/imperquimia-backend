@@ -90,19 +90,41 @@ export class ActividadesDiariasRepository {
     });
   }
 
-  findPorProyecto(proyectoId: number) {
+  private buildWhereFecha(fechaInicio?: Date, fechaFin?: Date) {
+    if (!fechaInicio && !fechaFin) return {};
+    return {
+      fecha: {
+        ...(fechaInicio ? { gte: fechaInicio } : {}),
+        ...(fechaFin ? { lte: fechaFin } : {}),
+      },
+    };
+  }
+
+  findPorProyecto(
+    proyectoId: number,
+    rango?: { fechaInicio?: Date; fechaFin?: Date },
+  ) {
     return this.prisma.actividadDiaria.findMany({
-      where: { proyectoId, deletedAt: null },
+      where: {
+        proyectoId,
+        deletedAt: null,
+        ...this.buildWhereFecha(rango?.fechaInicio, rango?.fechaFin),
+      },
       include: includeActividad,
       orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
-  findAccesibles(empleadoId: number | null, esAdmin: boolean) {
+  findAccesibles(
+    empleadoId: number | null,
+    esAdmin: boolean,
+    rango?: { fechaInicio?: Date; fechaFin?: Date },
+  ) {
     if (!esAdmin && !empleadoId) return Promise.resolve([]);
     return this.prisma.actividadDiaria.findMany({
       where: {
         deletedAt: null,
+        ...this.buildWhereFecha(rango?.fechaInicio, rango?.fechaFin),
         proyecto: {
           deletedAt: null,
           estado: 'ACTIVO',

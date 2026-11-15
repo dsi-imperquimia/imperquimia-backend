@@ -1,6 +1,7 @@
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { JwtPayload } from '@/common/decorators/current-user.decorator';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { ActualizarActividadDiariaDto } from '../dto/actualizar-actividad-diaria.dto';
@@ -18,11 +20,18 @@ import {
   ActividadesPermissionsGuard,
 } from '../guards/actividades-permissions.guard';
 import { ActividadesDiariasService } from '../service/actividades-diarias.service';
+import {
+  ActividadesExportService,
+  FormatoExportacionActividad,
+} from '../service/actividades-export.service';
 
 @Controller('actividades-diarias')
 @UseGuards(ActividadesPermissionsGuard)
 export class ActividadesDiariasController {
-  constructor(private readonly service: ActividadesDiariasService) {}
+  constructor(
+    private readonly service: ActividadesDiariasService,
+    private readonly exportService: ActividadesExportService,
+  ) {}
 
   @Get('proyectos-disponibles')
   @ActividadesPermissions(
@@ -32,6 +41,44 @@ export class ActividadesDiariasController {
   )
   findProyectosDisponibles(@CurrentUser() user: JwtPayload) {
     return this.service.findProyectosDisponibles(user.sub);
+  }
+
+  @Get('exportar')
+  @ActividadesPermissions(
+    'ACTIVIDAD_READ',
+    'ACTIVIDAD_CREATE',
+    'ACTIVIDAD_UPDATE',
+  )
+  async exportar(
+    @Query('formato') formatoRaw: string | undefined,
+    @Query('proyectoId', new ParseIntPipe({ optional: true }))
+    proyectoId: number | undefined,
+    @Query('fechaInicio') fechaInicio: string | undefined,
+    @Query('fechaFin') fechaFin: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<StreamableFile> {
+    const formatoNormalizado = formatoRaw?.trim().toLowerCase();
+    if (formatoNormalizado !== 'pdf' && formatoNormalizado !== 'excel') {
+      throw new BadRequestException(
+        'Formato de exportación inválido. Usa "pdf" o "excel".',
+      );
+    }
+    const formato: FormatoExportacionActividad = formatoNormalizado;
+    const { actividades, filtros } = await this.service.findParaExportar(
+      user.sub,
+      proyectoId,
+      fechaInicio,
+      fechaFin,
+    );
+    const archivo = await this.exportService.exportar(
+      formato,
+      actividades,
+      filtros,
+    );
+    return new StreamableFile(archivo.buffer, {
+      type: archivo.mimeType,
+      disposition: `attachment; filename="${archivo.filename}"`,
+    });
   }
 
   @Get(':id')
@@ -56,9 +103,16 @@ export class ActividadesDiariasController {
   findActividades(
     @Query('proyectoId', new ParseIntPipe({ optional: true }))
     proyectoId: number | undefined,
+    @Query('fechaInicio') fechaInicio: string | undefined,
+    @Query('fechaFin') fechaFin: string | undefined,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.findActividades(user.sub, proyectoId);
+    return this.service.findActividades(
+      user.sub,
+      proyectoId,
+      fechaInicio,
+      fechaFin,
+    );
   }
 
   @Post()

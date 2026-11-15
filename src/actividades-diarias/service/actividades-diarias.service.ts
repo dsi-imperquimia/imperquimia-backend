@@ -26,14 +26,61 @@ export class ActividadesDiariasService {
     return this.repo.findProyectosDisponibles(usuario.empleadoId, esAdmin);
   }
 
-  async findActividades(usuarioId: number, proyectoId?: number) {
+  async findActividades(
+    usuarioId: number,
+    proyectoId?: number,
+    fechaInicio?: string,
+    fechaFin?: string,
+  ) {
+    const { actividades } = await this.obtenerActividadesFiltradas(
+      usuarioId,
+      proyectoId,
+      fechaInicio,
+      fechaFin,
+    );
+    return actividades;
+  }
+
+  async findParaExportar(
+    usuarioId: number,
+    proyectoId?: number,
+    fechaInicio?: string,
+    fechaFin?: string,
+  ) {
+    return this.obtenerActividadesFiltradas(
+      usuarioId,
+      proyectoId,
+      fechaInicio,
+      fechaFin,
+    );
+  }
+
+  private async obtenerActividadesFiltradas(
+    usuarioId: number,
+    proyectoId?: number,
+    fechaInicio?: string,
+    fechaFin?: string,
+  ) {
     const usuario = await this.repo.findUsuario(usuarioId);
     if (!usuario) {
       throw new ForbiddenException('Usuario no disponible.');
     }
+    const { rango, fechaInicioIso, fechaFinIso } = this.construirRangoFechas(
+      fechaInicio,
+      fechaFin,
+    );
     const esAdmin = this.esAdministrador(usuario.role?.name);
     if (proyectoId === undefined) {
-      return this.repo.findAccesibles(usuario.empleadoId, esAdmin);
+      const actividades = rango
+        ? await this.repo.findAccesibles(usuario.empleadoId, esAdmin, rango)
+        : await this.repo.findAccesibles(usuario.empleadoId, esAdmin);
+      return {
+        actividades,
+        filtros: {
+          fechaInicio: fechaInicioIso,
+          fechaFin: fechaFinIso,
+        },
+      };
     }
     if (!Number.isInteger(proyectoId) || proyectoId < 1) {
       throw new BadRequestException('Selecciona un proyecto válido.');
@@ -47,7 +94,17 @@ export class ActividadesDiariasService {
         'Solo el jefe de proyecto asignado puede consultar sus actividades.',
       );
     }
-    return this.repo.findPorProyecto(proyecto.id);
+    const actividades = rango
+      ? await this.repo.findPorProyecto(proyecto.id, rango)
+      : await this.repo.findPorProyecto(proyecto.id);
+    return {
+      actividades,
+      filtros: {
+        proyectoNombre: proyecto.nombre,
+        fechaInicio: fechaInicioIso,
+        fechaFin: fechaFinIso,
+      },
+    };
   }
 
   async findOne(id: number, usuarioId: number) {
@@ -267,17 +324,9 @@ export class ActividadesDiariasService {
     return normalizado === 'administrador' || normalizado === 'administracion';
   }
 
-  private parsearYValidarFecha(valor: string): Date {
+  private parsearFechaCalendar(valor: string): Date | null {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor.trim());
-    if (!match) {
-      throw new BadRequestException({
-        message: {
-          fecha: ['Ingresa una fecha válida en formato AAAA-MM-DD.'],
-        },
-        error: 'Bad Request',
-        statusCode: 400,
-      });
-    }
+    if (!match) return null;
     const anio = Number(match[1]);
     const mes = Number(match[2]);
     const dia = Number(match[3]);
@@ -287,6 +336,63 @@ export class ActividadesDiariasService {
       fecha.getUTCMonth() !== mes - 1 ||
       fecha.getUTCDate() !== dia
     ) {
+      return null;
+    }
+    return fecha;
+  }
+
+  private construirRangoFechas(
+    fechaInicioRaw?: string,
+    fechaFinRaw?: string,
+  ): {
+    rango?: { fechaInicio?: Date; fechaFin?: Date };
+    fechaInicioIso?: string;
+    fechaFinIso?: string;
+  } {
+    const fechaInicioIso = fechaInicioRaw?.trim() || undefined;
+    const fechaFinIso = fechaFinRaw?.trim() || undefined;
+
+    const fechaInicio = fechaInicioIso
+      ? this.parsearFechaCalendar(fechaInicioIso)
+      : undefined;
+    if (fechaInicioIso && !fechaInicio) {
+      throw new BadRequestException(
+        'La fecha de inicio debe tener formato AAAA-MM-DD válido.',
+      );
+    }
+
+    const fechaFin = fechaFinIso
+      ? this.parsearFechaCalendar(fechaFinIso)
+      : undefined;
+    if (fechaFinIso && !fechaFin) {
+      throw new BadRequestException(
+        'La fecha fin debe tener formato AAAA-MM-DD válido.',
+      );
+    }
+
+    if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
+      throw new BadRequestException(
+        'La fecha de inicio no puede ser mayor que la fecha fin.',
+      );
+    }
+
+    if (!fechaInicio && !fechaFin) {
+      return {};
+    }
+
+    return {
+      rango: {
+        ...(fechaInicio ? { fechaInicio } : {}),
+        ...(fechaFin ? { fechaFin } : {}),
+      },
+      fechaInicioIso,
+      fechaFinIso,
+    };
+  }
+
+  private parsearYValidarFecha(valor: string): Date {
+    const fecha = this.parsearFechaCalendar(valor);
+    if (!fecha) {
       throw new BadRequestException({
         message: {
           fecha: ['Ingresa una fecha válida en formato AAAA-MM-DD.'],
