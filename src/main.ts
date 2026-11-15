@@ -33,6 +33,7 @@ async function bootstrap() {
   app.enableCors({
     origin: '*', // Permitir solicitudes desde cualquier origen
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos HTTP permitidos
+    exposedHeaders: ['Content-Disposition'],
     preflightContinue: false, // No pasar la solicitud de preflight a la siguiente función de middleware
     // optionsSuccessStatus: 204, // Respuesta para solicitudes de preflight exitosas
   });
