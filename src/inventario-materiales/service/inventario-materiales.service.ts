@@ -1,4 +1,5 @@
 import { RegistrarMovimientoMaterialDto } from '../dto/registrar-movimiento-material.dto';
+import { RegistrarSalidaMaterialesProyectoDto } from '../dto/registrar-salida-materiales-proyecto.dto';
 import {
   DireccionMovimiento,
   InventarioOperacionError,
@@ -40,6 +41,118 @@ export class InventarioMaterialesService {
 
   registrarSalida(dto: RegistrarMovimientoMaterialDto, usuarioId: number) {
     return this.registrar('SALIDA', dto, usuarioId);
+  }
+
+  async registrarSalidasProyecto(
+    dto: RegistrarSalidaMaterialesProyectoDto,
+    usuarioId: number,
+  ) {
+    const materialesIds = dto.materiales.map((item) => item.materialId);
+    const claves = dto.materiales.map((item) => item.claveOperacion);
+    if (new Set(materialesIds).size !== materialesIds.length) {
+      throw new BadRequestException(
+        'Cada material debe aparecer una sola vez en el envío.',
+      );
+    }
+    if (new Set(claves).size !== claves.length) {
+      throw new BadRequestException(
+        'Cada material debe tener una clave de operación diferente.',
+      );
+    }
+
+    const observacion = dto.observacion?.trim() || undefined;
+    const existentes = await this.repo.findMovimientosByKeys(claves);
+    if (existentes.length) {
+      return this.validarReintentoLote(existentes, dto, observacion, 'SALIDA');
+    }
+
+    try {
+      const movimientos = await this.repo.registrarSalidasProyecto(
+        dto.proyectoId,
+        dto.materiales.map((item) => ({
+          ...item,
+          cantidad: new Prisma.Decimal(item.cantidad),
+        })),
+        observacion,
+        usuarioId,
+      );
+      return { movimientos, repetido: false };
+    } catch (error) {
+      if (error instanceof InventarioOperacionError) {
+        this.throwRepositoryError(error.code, error.details);
+      }
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const concurrentes = await this.repo.findMovimientosByKeys(claves);
+        if (concurrentes.length) {
+          return this.validarReintentoLote(
+            concurrentes,
+            dto,
+            observacion,
+            'SALIDA',
+          );
+        }
+      }
+      throw error;
+    }
+  }
+
+  async registrarDevolucionesProyecto(
+    dto: RegistrarSalidaMaterialesProyectoDto,
+    usuarioId: number,
+  ) {
+    const materialesIds = dto.materiales.map((item) => item.materialId);
+    const claves = dto.materiales.map((item) => item.claveOperacion);
+    if (new Set(materialesIds).size !== materialesIds.length) {
+      throw new BadRequestException(
+        'Cada material debe aparecer una sola vez en la devolución.',
+      );
+    }
+    if (new Set(claves).size !== claves.length) {
+      throw new BadRequestException(
+        'Cada material debe tener una clave de operación diferente.',
+      );
+    }
+
+    const observacion = dto.observacion?.trim() || undefined;
+    const existentes = await this.repo.findMovimientosByKeys(claves);
+    if (existentes.length) {
+      return this.validarReintentoLote(existentes, dto, observacion, 'ENTRADA');
+    }
+
+    try {
+      const movimientos = await this.repo.registrarDevolucionesProyecto(
+        dto.proyectoId,
+        dto.materiales.map((item) => ({
+          ...item,
+          cantidad: new Prisma.Decimal(item.cantidad),
+        })),
+        observacion,
+        usuarioId,
+      );
+      return { movimientos, repetido: false };
+    } catch (error) {
+      if (error instanceof InventarioOperacionError) {
+        this.throwRepositoryError(error.code, error.details);
+      }
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const concurrentes = await this.repo.findMovimientosByKeys(claves);
+        if (concurrentes.length) {
+          return this.validarReintentoLote(
+            concurrentes,
+            dto,
+            observacion,
+            'ENTRADA',
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   private async registrar(
@@ -148,6 +261,43 @@ export class InventarioMaterialesService {
       );
     }
     return { movimiento, repetido: true };
+  }
+
+  private validarReintentoLote(
+    movimientos: Awaited<
+      ReturnType<InventarioMaterialesRepository['findMovimientosByKeys']>
+    >,
+    dto: RegistrarSalidaMaterialesProyectoDto,
+    observacion: string | undefined,
+    direccion: DireccionMovimiento,
+  ) {
+    if (movimientos.length !== dto.materiales.length) {
+      throw new ConflictException(
+        'Una clave de operación del movimiento ya fue utilizada.',
+      );
+    }
+    const porClave = new Map(
+      movimientos.map((movimiento) => [movimiento.claveOperacion, movimiento]),
+    );
+    const ordenados = dto.materiales.map((item) => {
+      const movimiento = porClave.get(item.claveOperacion);
+      if (!movimiento) {
+        throw new ConflictException(
+          'Una clave de operación del movimiento ya fue utilizada.',
+        );
+      }
+      this.validarReintento(movimiento, direccion, {
+        ...item,
+        motivo:
+          direccion === 'SALIDA'
+            ? MotivoMovimientoMaterial.USO_PROYECTO
+            : MotivoMovimientoMaterial.DEVOLUCION_PROYECTO,
+        proyectoId: dto.proyectoId,
+        observacion,
+      });
+      return movimiento;
+    });
+    return { movimientos: ordenados, repetido: true };
   }
 
   private throwRepositoryError(

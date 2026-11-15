@@ -12,23 +12,31 @@ import {
 import { MovimientoService } from '../service/movimiento.service';
 import { CreateMovimientoDto } from '../dto/create-movimiento.dto';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
+import type { Request as ExpressRequest } from 'express';
+import {
+  CatalogPermissions,
+  CatalogPermissionsGuard,
+} from '@/herramientas/guards/catalog-permissions.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, CatalogPermissionsGuard)
 @Controller('movimientos')
-export class MovimientoController { //  Verifica que se exporte correctamente aquí
+export class MovimientoController {
+  //  Verifica que se exporte correctamente aquí
   constructor(private readonly movimientoService: MovimientoService) {}
 
   // POST /movimientos
   @Post()
-  create(@Body() dto: CreateMovimientoDto, @Request() req: any) {
-    // Si tu JWT guarda el identificador bajo 'id', req.user.id funcionará.
-    // Si sigue llegando undefined, cambia req.user.id por req.user.sub
-    const userId = req.user?.id || req.user?.sub; 
-    return this.movimientoService.create(dto, userId);
+  @CatalogPermissions('HERRAMIENTA_UPDATE')
+  create(
+    @Body() dto: CreateMovimientoDto,
+    @Request() req: ExpressRequest & { user: { sub: number } },
+  ) {
+    return this.movimientoService.create(dto, req.user.sub);
   }
 
   // GET /movimientos
   @Get()
+  @CatalogPermissions('HERRAMIENTA_READ')
   findAll(@Query('herramientaId') herramientaId?: string) {
     const id = herramientaId ? parseInt(herramientaId, 10) : undefined;
     return this.movimientoService.findAll(id);
@@ -36,6 +44,7 @@ export class MovimientoController { //  Verifica que se exporte correctamente aq
 
   // GET /movimientos/:id
   @Get(':id')
+  @CatalogPermissions('HERRAMIENTA_READ')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.movimientoService.findOne(id);
   }

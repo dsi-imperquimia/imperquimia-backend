@@ -61,6 +61,13 @@ export class InventarioMaterialesRepository {
     });
   }
 
+  findMovimientosByKeys(clavesOperacion: string[]) {
+    return this.prisma.movimientoMaterial.findMany({
+      where: { claveOperacion: { in: clavesOperacion } },
+      include: movimientoInclude,
+    });
+  }
+
   findMaterial(id: number) {
     return this.prisma.material.findUnique({
       where: { id },
@@ -264,6 +271,164 @@ export class InventarioMaterialesRepository {
         include: movimientoInclude,
       });
       return movimiento;
+    });
+  }
+
+  async registrarSalidasProyecto(
+    proyectoId: number,
+    materiales: Array<{
+      claveOperacion: string;
+      materialId: number;
+      cantidad: Prisma.Decimal;
+    }>,
+    observacion: string | undefined,
+    usuarioId: number,
+  ) {
+    return this.registrarTrasladosProyecto(
+      'SALIDA',
+      proyectoId,
+      materiales,
+      observacion,
+      usuarioId,
+    );
+  }
+
+  async registrarDevolucionesProyecto(
+    proyectoId: number,
+    materiales: Array<{
+      claveOperacion: string;
+      materialId: number;
+      cantidad: Prisma.Decimal;
+    }>,
+    observacion: string | undefined,
+    usuarioId: number,
+  ) {
+    return this.registrarTrasladosProyecto(
+      'ENTRADA',
+      proyectoId,
+      materiales,
+      observacion,
+      usuarioId,
+    );
+  }
+
+  private async registrarTrasladosProyecto(
+    direccion: DireccionMovimiento,
+    proyectoId: number,
+    materiales: Array<{
+      claveOperacion: string;
+      materialId: number;
+      cantidad: Prisma.Decimal;
+    }>,
+    observacion: string | undefined,
+    usuarioId: number,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const proyecto = await tx.proyecto.findFirst({
+        where: { id: proyectoId, deletedAt: null },
+        select: { id: true, nombre: true, estado: true },
+      });
+      if (!proyecto)
+        throw new InventarioOperacionError('PROYECTO_NO_ENCONTRADO');
+      if (proyecto.estado !== 'ACTIVO')
+        throw new InventarioOperacionError('PROYECTO_NO_ACTIVO');
+
+      const bodega = await tx.ubicacionMaterial.findUnique({
+        where: { codigo: 'BODEGA-GENERAL' },
+      });
+      if (!bodega) throw new InventarioOperacionError('BODEGA_NO_CONFIGURADA');
+
+      const ids = materiales.map((item) => item.materialId);
+      const catalogo = await tx.material.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, estado: true },
+      });
+      if (catalogo.length !== ids.length)
+        throw new InventarioOperacionError('MATERIAL_NO_ENCONTRADO');
+      if (catalogo.some((material) => !material.estado))
+        throw new InventarioOperacionError('MATERIAL_INACTIVO');
+
+      const ubicacionProyecto = await tx.ubicacionMaterial.upsert({
+        where: { codigo: `PROYECTO-${proyecto.id}` },
+        update: { nombre: proyecto.nombre, proyectoId: proyecto.id },
+        create: {
+          codigo: `PROYECTO-${proyecto.id}`,
+          nombre: proyecto.nombre,
+          tipo: TipoUbicacionMaterial.PROYECTO,
+          proyectoId: proyecto.id,
+        },
+        select: { id: true },
+      });
+
+      await tx.movimientoMaterial.createMany({
+        data: materiales.map((item) => ({
+          claveOperacion: item.claveOperacion,
+          materialId: item.materialId,
+          cantidad: item.cantidad,
+          tipo: TipoMovimientoMaterial.TRASLADO,
+          motivo:
+            direccion === 'SALIDA'
+              ? MotivoMovimientoMaterial.USO_PROYECTO
+              : MotivoMovimientoMaterial.DEVOLUCION_PROYECTO,
+          origenId: direccion === 'SALIDA' ? bodega.id : ubicacionProyecto.id,
+          destinoId: direccion === 'SALIDA' ? ubicacionProyecto.id : bodega.id,
+          usuarioId,
+          observacion: observacion || null,
+        })),
+      });
+
+      const origenId =
+        direccion === 'SALIDA' ? bodega.id : ubicacionProyecto.id;
+      const destinoId =
+        direccion === 'SALIDA' ? ubicacionProyecto.id : bodega.id;
+      for (const item of materiales) {
+        const descontado = await tx.existenciaMaterial.updateMany({
+          where: {
+            materialId: item.materialId,
+            ubicacionId: origenId,
+            cantidad: { gte: item.cantidad },
+          },
+          data: { cantidad: { decrement: item.cantidad } },
+        });
+        if (descontado.count !== 1) {
+          const existencia = await tx.existenciaMaterial.findUnique({
+            where: {
+              materialId_ubicacionId: {
+                materialId: item.materialId,
+                ubicacionId: origenId,
+              },
+            },
+            select: { cantidad: true },
+          });
+          throw new InventarioOperacionError('SALDO_INSUFICIENTE', {
+            cantidadDisponible: existencia?.cantidad.toString() ?? '0',
+          });
+        }
+
+        await tx.existenciaMaterial.upsert({
+          where: {
+            materialId_ubicacionId: {
+              materialId: item.materialId,
+              ubicacionId: destinoId,
+            },
+          },
+          update: { cantidad: { increment: item.cantidad } },
+          create: {
+            materialId: item.materialId,
+            ubicacionId: destinoId,
+            cantidad: item.cantidad,
+          },
+        });
+      }
+
+      return tx.movimientoMaterial.findMany({
+        where: {
+          claveOperacion: {
+            in: materiales.map((item) => item.claveOperacion),
+          },
+        },
+        include: movimientoInclude,
+      });
     });
   }
 }

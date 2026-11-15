@@ -74,12 +74,12 @@ describe('ProyectoService: presupuesto de materiales', () => {
     const { repo, service } = setup();
     await service.create({
       ...base,
-      detalles: [{ materialId: 1, cantidad: 2 }, { materialId: 2, cantidad: 1.5 }],
+      detalles: [{ materialId: 1, cantidad: 2 }, { materialId: 2, cantidad: 1 }],
     }, 7);
     const data = repo.create.mock.calls[0][0] as Prisma.ProyectoUncheckedCreateInput;
-    expect(data.subTotal?.toString()).toBe('27.5');
-    expect(data.totalIva?.toString()).toBe('3.58');
-    expect(data.total?.toString()).toBe('31.08');
+    expect(data.subTotal?.toString()).toBe('25');
+    expect(data.totalIva?.toString()).toBe('3.25');
+    expect(data.total?.toString()).toBe('28.25');
     expect(data.detalles?.create).toHaveLength(2);
   });
 
@@ -92,6 +92,10 @@ describe('ProyectoService: presupuesto de materiales', () => {
     await expect(service.create({
       ...base,
       detalles: [{ materialId: 1, cantidad: 0 }],
+    }, 7)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.create({
+      ...base,
+      detalles: [{ materialId: 1, cantidad: 1.5 }],
     }, 7)).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -125,6 +129,7 @@ describe('ProyectoService: presupuesto de materiales', () => {
     repo.findUnique.mockResolvedValue({
       ...base,
       id: 9,
+      estado: 'ACTIVO',
       fechaInicio: new Date('2026-09-14'),
       fechaFin: new Date('2026-09-30'),
       detalles: [{
@@ -141,6 +146,24 @@ describe('ProyectoService: presupuesto de materiales', () => {
     const vacio = repo.update.mock.calls[1][1] as Prisma.ProyectoUpdateInput;
     expect(vacio.total?.toString()).toBe('0');
     expect(vacio.detalles?.deleteMany).toEqual({});
+  });
+
+  it('impide quitar el último medio de contacto al editar', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      ...base,
+      id: 9,
+      estado: 'ACTIVO',
+      phone: null,
+      email: 'nuevo@example.com',
+      fechaInicio: new Date('2026-09-14'),
+      fechaFin: new Date('2026-09-30'),
+      detalles: [],
+    });
+    await expect(service.update(9, { email: '' })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.update).not.toHaveBeenCalled();
   });
 });
 

@@ -32,7 +32,9 @@ export class CatalogPermissionsGuard implements CanActivate {
     const userId = request.user?.sub;
 
     if (!required?.length || !Number.isInteger(userId)) {
-      throw new ForbiddenException('No tienes permiso para este catálogo');
+      throw new ForbiddenException(
+        'No tienes permiso para realizar esta acción',
+      );
     }
 
     const user = await this.prisma.user.findFirst({
@@ -65,7 +67,9 @@ export class CatalogPermissionsGuard implements CanActivate {
     });
 
     if (!user) {
-      throw new ForbiddenException('No tienes permiso para este catálogo');
+      throw new ForbiddenException(
+        'No tienes permiso para realizar esta acción',
+      );
     }
 
     return true;
