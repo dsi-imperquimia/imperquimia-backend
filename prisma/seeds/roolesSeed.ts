@@ -134,8 +134,8 @@ export async function seedRoles(prisma: PrismaClient) {
 
   // prettier-ignore
   const jornadaHerramientasPermissions: PermissionType[] = [
-    { id: 43, name: 'JORNADA_HERRAMIENTA_READ', description: 'Permiso para consultar el checklist de herramientas de una jornada' },
-    { id: 44, name: 'JORNADA_HERRAMIENTA_VERIFY', description: 'Permiso para verificar el inicio y confirmar el retorno de herramientas de una jornada' },
+    { id: 50, name: 'JORNADA_HERRAMIENTA_READ', description: 'Permiso para consultar el checklist de herramientas de una jornada' },
+    { id: 51, name: 'JORNADA_HERRAMIENTA_VERIFY', description: 'Permiso para verificar el inicio y confirmar el retorno de herramientas de una jornada' },
   ];
 
   const permissions: PermissionType[] = [
