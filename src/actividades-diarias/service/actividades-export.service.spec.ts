@@ -112,4 +112,14 @@ describe('ActividadesExportService (GPRIMPER-43)', () => {
       'Pendiente de registrar (generada por el sistema)',
     );
   });
+
+  it('usa la fecha de El Salvador en el nombre del archivo cuando no se envían filtros de fecha', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-15T05:51:00.000Z'));
+    try {
+      const pdf = await service.exportar('pdf', actividadesMuestra, {});
+      expect(pdf.filename).toBe('actividades-diarias-2026-11-14.pdf');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
