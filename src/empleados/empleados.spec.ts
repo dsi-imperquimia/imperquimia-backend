@@ -314,8 +314,10 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
   function setup() {
     const repo = {
       findEmpleadoIdPorUsuario: jest.fn(),
-      findMisAsignaciones: jest.fn(),
+      findMisAsignaciones: jest.fn().mockResolvedValue([]),
+      findMisProyectosComoJefe: jest.fn().mockResolvedValue([]),
       findMiAsignacionDetalle: jest.fn(),
+      findMiProyectoComoJefe: jest.fn().mockResolvedValue(null),
       marcarAsignacionVista: jest.fn(),
     };
     return { repo, service: new EmpleadoService(repo as unknown as EmpleadoRepository) };
@@ -354,6 +356,7 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
         id: 9,
         nombre: 'Obra A',
         ubicacion: 'San Salvador',
+        jefeProyectoId: 1,
         jefeProyecto: { nombreCompleto: 'Ana Jefa', user: { email: 'ana@test.com' } },
       },
     });
@@ -361,8 +364,26 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
     expect(detalle).toMatchObject({
       id: 9,
       vista: false,
+      esJefe: false,
       jefeProyecto: { nombreCompleto: 'Ana Jefa', email: 'ana@test.com' },
     });
+    expect(detalle).not.toHaveProperty('jefeProyectoId');
+  });
+
+  it('marca esJefe en el detalle cuando el técnico también es el jefe del proyecto', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: {
+        id: 9,
+        nombre: 'Obra A',
+        jefeProyectoId: 5,
+        jefeProyecto: { nombreCompleto: 'Yo mismo', user: { email: null } },
+      },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle.esJefe).toBe(true);
   });
 
   it('da null como jefe de proyecto si no hay uno asignado', async () => {
@@ -394,5 +415,52 @@ describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
     });
     await expect(service.marcarAsignacionVista(1, 9)).resolves.toEqual({ vista: true });
     expect(repo.marcarAsignacionVista).toHaveBeenCalledWith(5, 9);
+  });
+
+  it('incluye los proyectos donde el empleado es jefe, marcando esJefe y sin pisar la asignación de técnico', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMisAsignaciones.mockResolvedValue([
+      { vistaAt: null, proyecto: { id: 1, nombre: 'Obra A (técnico y jefe)', estado: 'ACTIVO' } },
+    ]);
+    repo.findMisProyectosComoJefe.mockResolvedValue([
+      { id: 1, nombre: 'Obra A (técnico y jefe)', estado: 'ACTIVO' },
+      { id: 2, nombre: 'Obra B (solo jefe)', estado: 'ACTIVO' },
+    ]);
+    const resultado = await service.misAsignaciones(1);
+    expect(resultado.items).toEqual([
+      expect.objectContaining({ id: 1, esJefe: true, vista: false }),
+      expect.objectContaining({ id: 2, esJefe: true, vista: true }),
+    ]);
+    // Obra B no tiene fila en proyecto_empleados: no cuenta como pendiente.
+    expect(resultado.pendientes).toBe(1);
+  });
+
+  it('da el detalle de un proyecto donde el empleado solo es jefe (sin fila de técnico)', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue(null);
+    repo.findMiProyectoComoJefe.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra A',
+      jefeProyecto: { nombreCompleto: 'Carlos Jefe', user: { email: 'carlos@test.com' } },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle).toMatchObject({
+      id: 9,
+      vista: true,
+      vistaAt: null,
+      esJefe: true,
+      jefeProyecto: { nombreCompleto: 'Carlos Jefe', email: 'carlos@test.com' },
+    });
+  });
+
+  it('no falla al marcar como vista un proyecto donde el empleado solo es jefe', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue(null);
+    repo.findMiProyectoComoJefe.mockResolvedValue({ id: 9, nombre: 'Obra A', jefeProyecto: null });
+    await expect(service.marcarAsignacionVista(1, 9)).resolves.toEqual({ vista: true });
+    expect(repo.marcarAsignacionVista).not.toHaveBeenCalled();
   });
 });

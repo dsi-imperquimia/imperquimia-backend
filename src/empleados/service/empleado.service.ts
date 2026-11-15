@@ -9,6 +9,40 @@ import { CreateEmpleadoDto } from '../dto/createEmpleado';
 import { UpdateEmpleadoDto } from '../dto/updateEmpleado';
 import { EmpleadoRepository } from '../repository/empleadoRepository';
 
+export interface ProyectoBasico {
+  id: number;
+  nombre: string;
+  ubicacion: string | null;
+  estado: string;
+  fechaInicio: Date | null;
+  fechaFin: Date | null;
+}
+
+export interface JefeProyectoInfo {
+  nombreCompleto: string;
+  user: { email: string | null } | null;
+}
+
+export type ItemMiAsignacion = ProyectoBasico & {
+  vista: boolean;
+  vistaAt: Date | null;
+  esJefe: boolean;
+};
+
+function aItemAsignacion(
+  proyecto: ProyectoBasico,
+  vistaAt: Date | null,
+  esJefe: boolean,
+): ItemMiAsignacion {
+  return { ...proyecto, vista: vistaAt !== null, vistaAt, esJefe };
+}
+
+function aContactoJefe(jefeProyecto: JefeProyectoInfo | null) {
+  return jefeProyecto
+    ? { nombreCompleto: jefeProyecto.nombreCompleto, email: jefeProyecto.user?.email ?? null }
+    : null;
+}
+
 @Injectable()
 export class EmpleadoService {
   constructor(private readonly repo: EmpleadoRepository) {}
@@ -120,12 +154,12 @@ export class EmpleadoService {
     ]);
 
     const jefeIds = new Set(proyectosComoJefe.map((proyecto) => proyecto.id));
-    const porId = new Map<number, ReturnType<typeof this.aItemAsignacion>>();
+    const porId = new Map<number, ItemMiAsignacion>();
 
     for (const { proyecto, vistaAt } of asignaciones) {
       porId.set(
         proyecto.id,
-        this.aItemAsignacion(proyecto, vistaAt, jefeIds.has(proyecto.id)),
+        aItemAsignacion(proyecto, vistaAt, jefeIds.has(proyecto.id)),
       );
     }
     for (const proyecto of proyectosComoJefe) {
@@ -133,7 +167,7 @@ export class EmpleadoService {
       // Sin fila en proyecto_empleados no hay vistaAt que rastrear: se
       // considera siempre "vista" para no mostrar un pendiente que nunca
       // se puede marcar como leído.
-      porId.set(proyecto.id, this.aItemAsignacion(proyecto, new Date(), true));
+      porId.set(proyecto.id, aItemAsignacion(proyecto, new Date(), true));
     }
 
     const items = [...porId.values()];
@@ -141,21 +175,6 @@ export class EmpleadoService {
       items,
       pendientes: items.filter((item) => !item.vista).length,
     };
-  }
-
-  private aItemAsignacion(
-    proyecto: {
-      id: number;
-      nombre: string;
-      ubicacion: string | null;
-      estado: string;
-      fechaInicio: Date | null;
-      fechaFin: Date | null;
-    },
-    vistaAt: Date | null,
-    esJefe: boolean,
-  ) {
-    return { ...proyecto, vista: vistaAt !== null, vistaAt, esJefe };
   }
 
   // Detalle de una asignación propia. No marca la visualización por sí
@@ -170,14 +189,13 @@ export class EmpleadoService {
     );
     if (asignacion) {
       const { proyecto, vistaAt } = asignacion;
-      const { jefeProyecto, ...datosProyecto } = proyecto;
+      const { jefeProyecto, jefeProyectoId, ...datosProyecto } = proyecto;
       return {
         ...datosProyecto,
         vista: vistaAt !== null,
         vistaAt,
-        jefeProyecto: jefeProyecto
-          ? { nombreCompleto: jefeProyecto.nombreCompleto, email: jefeProyecto.user?.email ?? null }
-          : null,
+        esJefe: jefeProyectoId === empleadoId,
+        jefeProyecto: aContactoJefe(jefeProyecto),
       };
     }
 
@@ -195,14 +213,15 @@ export class EmpleadoService {
       ...datosProyecto,
       vista: true,
       vistaAt: null,
-      jefeProyecto: jefeProyecto
-        ? { nombreCompleto: jefeProyecto.nombreCompleto, email: jefeProyecto.user?.email ?? null }
-        : null,
+      esJefe: true,
+      jefeProyecto: aContactoJefe(jefeProyecto),
     };
   }
 
   // Marca la asignación como "Vista" con fecha/hora exacta, la primera vez
-  // que el técnico abre el detalle (GPRCIMPER-122).
+  // que el técnico abre el detalle (GPRCIMPER-122). Si el empleado solo es
+  // jefe de proyecto en esa obra no hay fila de técnico que marcar: ya se
+  // considera "vista" (ver miAsignacionDetalle), así que no hace nada.
   async marcarAsignacionVista(userId: number, proyectoId: number) {
     const empleadoId = await this.resolveEmpleadoId(userId);
     const asignacion = await this.repo.findMiAsignacionDetalle(
@@ -210,9 +229,16 @@ export class EmpleadoService {
       proyectoId,
     );
     if (!asignacion) {
-      throw new NotFoundException(
-        'No tienes una asignación vigente en este proyecto.',
+      const proyectoComoJefe = await this.repo.findMiProyectoComoJefe(
+        empleadoId,
+        proyectoId,
       );
+      if (!proyectoComoJefe) {
+        throw new NotFoundException(
+          'No tienes una asignación vigente en este proyecto.',
+        );
+      }
+      return { vista: true };
     }
     await this.repo.marcarAsignacionVista(empleadoId, proyectoId);
     return { vista: true };

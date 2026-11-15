@@ -158,6 +158,7 @@ export class EmpleadoRepository {
             estado: true,
             fechaInicio: true,
             fechaFin: true,
+            jefeProyectoId: true,
             jefeProyecto: {
               select: {
                 nombreCompleto: true,
