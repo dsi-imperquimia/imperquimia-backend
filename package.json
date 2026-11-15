@@ -62,6 +62,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "~5.0.6",
     "@types/jest": "~30.0.0",
+    "@types/multer": "^2.3.0",
     "@types/node": "~26.6.4",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.7",

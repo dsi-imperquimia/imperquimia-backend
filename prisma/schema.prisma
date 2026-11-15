@@ -45,6 +45,7 @@ model User {
   alertasCreadas             NotificacionAlerta[]   @relation("AlertaCreador")
   auditoriasAlerta           AuditoriaAlerta[]
   actividadesDiarias         ActividadDiaria[]
+  evidenciasActividades      EvidenciaActividadDiaria[]
 
   @@map("mnt_users")
 }
@@ -616,7 +617,29 @@ model ActividadDiaria {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
+  evidencias EvidenciaActividadDiaria[]
+
   @@index([proyectoId, fecha])
   @@index([usuarioId, fecha])
   @@map("proy_actividades_diarias")
+}
+
+// ==========================================
+// MODELO: EVIDENCIA FOTOGRÁFICA (GPRIMPER-53)
+// ==========================================
+model EvidenciaActividadDiaria {
+  id                Int             @id @default(autoincrement())
+  actividadDiariaId Int             @map("actividad_diaria_id")
+  actividadDiaria   ActividadDiaria @relation(fields: [actividadDiariaId], references: [id], onDelete: Restrict)
+  usuarioId         Int             @map("usuario_id")
+  usuario           User            @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  nombreOriginal    String          @map("nombre_original") @db.VarChar(255)
+  rutaArchivo       String          @map("ruta_archivo") @db.VarChar(500)
+  mimeType          String          @map("mime_type") @db.VarChar(100)
+  tamanoBytes       Int             @map("tamano_bytes")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  deletedAt         DateTime?       @map("deleted_at")
+
+  @@index([actividadDiariaId, deletedAt])
+  @@map("proy_actividades_evidencias")
 }

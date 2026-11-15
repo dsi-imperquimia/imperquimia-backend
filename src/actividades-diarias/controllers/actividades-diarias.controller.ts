@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -11,8 +12,11 @@ import {
   Post,
   Query,
   StreamableFile,
+  UploadedFiles,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ActualizarActividadDiariaDto } from '../dto/actualizar-actividad-diaria.dto';
 import { CrearActividadDiariaDto } from '../dto/crear-actividad-diaria.dto';
 import {
@@ -20,6 +24,12 @@ import {
   ActividadesPermissionsGuard,
 } from '../guards/actividades-permissions.guard';
 import { ActividadesDiariasService } from '../service/actividades-diarias.service';
+import {
+  ActividadesEvidenciasService,
+  type ArchivoImagenSubido,
+  MAX_ARCHIVOS_POR_SUBIDA,
+  MAX_TAMANO_IMAGEN_BYTES,
+} from '../service/actividades-evidencias.service';
 import {
   ActividadesExportService,
   FormatoExportacionActividad,
@@ -31,6 +41,7 @@ export class ActividadesDiariasController {
   constructor(
     private readonly service: ActividadesDiariasService,
     private readonly exportService: ActividadesExportService,
+    private readonly evidenciasService: ActividadesEvidenciasService,
   ) {}
 
   @Get('proyectos-disponibles')
@@ -132,5 +143,68 @@ export class ActividadesDiariasController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.actualizar(id, dto, user.sub);
+  }
+
+  @Get(':id/evidencias')
+  @ActividadesPermissions(
+    'ACTIVIDAD_READ',
+    'ACTIVIDAD_CREATE',
+    'ACTIVIDAD_UPDATE',
+  )
+  listarEvidencias(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.evidenciasService.listar(id, user.sub);
+  }
+
+  @Post(':id/evidencias')
+  @ActividadesPermissions('ACTIVIDAD_UPDATE', 'ACTIVIDAD_CREATE')
+  @UseInterceptors(
+    FilesInterceptor('archivos', MAX_ARCHIVOS_POR_SUBIDA + 1, {
+      limits: {
+        fileSize: MAX_TAMANO_IMAGEN_BYTES + 2 * 1024 * 1024,
+        files: MAX_ARCHIVOS_POR_SUBIDA + 1,
+      },
+    }),
+  )
+  adjuntarEvidencias(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFiles() archivos: ArchivoImagenSubido[],
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.evidenciasService.adjuntar(id, archivos, user.sub);
+  }
+
+  @Get(':id/evidencias/:evidenciaId/archivo')
+  @ActividadesPermissions(
+    'ACTIVIDAD_READ',
+    'ACTIVIDAD_CREATE',
+    'ACTIVIDAD_UPDATE',
+  )
+  async descargarArchivoEvidencia(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('evidenciaId', ParseIntPipe) evidenciaId: number,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<StreamableFile> {
+    const archivo = await this.evidenciasService.obtenerArchivo(
+      id,
+      evidenciaId,
+      user.sub,
+    );
+    return new StreamableFile(archivo.stream, {
+      type: archivo.mimeType,
+      disposition: `inline; filename="${archivo.nombreOriginal}"`,
+    });
+  }
+
+  @Delete(':id/evidencias/:evidenciaId')
+  @ActividadesPermissions('ACTIVIDAD_UPDATE', 'ACTIVIDAD_CREATE')
+  eliminarEvidencia(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('evidenciaId', ParseIntPipe) evidenciaId: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.evidenciasService.eliminar(id, evidenciaId, user.sub);
   }
 }

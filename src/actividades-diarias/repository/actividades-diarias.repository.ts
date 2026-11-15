@@ -20,12 +20,33 @@ export interface DatosActualizarActividad {
   observaciones: string | null;
 }
 
+export const includeEvidenciaPublica = {
+  id: true,
+  actividadDiariaId: true,
+  nombreOriginal: true,
+  mimeType: true,
+  tamanoBytes: true,
+  createdAt: true,
+} as const;
+
+export interface DatosCrearEvidencia {
+  nombreOriginal: string;
+  rutaArchivo: string;
+  mimeType: string;
+  tamanoBytes: number;
+}
+
 const includeActividad = {
   proyecto: {
     select: { id: true, nombre: true, estado: true, jefeProyectoId: true },
   },
   usuario: { select: { id: true, name: true, lastName: true } },
   empleado: { select: { id: true, nombreCompleto: true } },
+  evidencias: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'asc' as const },
+    select: includeEvidenciaPublica,
+  },
 };
 
 @Injectable()
@@ -165,6 +186,54 @@ export class ActividadesDiariasRepository {
         observaciones: datos.observaciones,
       },
       include: includeActividad,
+    });
+  }
+
+  findEvidenciasPorActividad(actividadDiariaId: number) {
+    return this.prisma.evidenciaActividadDiaria.findMany({
+      where: { actividadDiariaId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: includeEvidenciaPublica,
+    });
+  }
+
+  findEvidenciaById(actividadDiariaId: number, evidenciaId: number) {
+    return this.prisma.evidenciaActividadDiaria.findFirst({
+      where: {
+        id: evidenciaId,
+        actividadDiariaId,
+        deletedAt: null,
+      },
+    });
+  }
+
+  crearEvidencias(
+    actividadDiariaId: number,
+    usuarioId: number,
+    archivos: DatosCrearEvidencia[],
+  ) {
+    return this.prisma.$transaction(
+      archivos.map((archivo) =>
+        this.prisma.evidenciaActividadDiaria.create({
+          data: {
+            actividadDiariaId,
+            usuarioId,
+            nombreOriginal: archivo.nombreOriginal,
+            rutaArchivo: archivo.rutaArchivo,
+            mimeType: archivo.mimeType,
+            tamanoBytes: archivo.tamanoBytes,
+          },
+          select: includeEvidenciaPublica,
+        }),
+      ),
+    );
+  }
+
+  eliminarEvidencia(id: number) {
+    return this.prisma.evidenciaActividadDiaria.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+      select: includeEvidenciaPublica,
     });
   }
 }
