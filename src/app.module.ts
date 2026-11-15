@@ -16,6 +16,7 @@ import { ProyectosModule } from './proyectos/proyectos.module';
 import { AlertasModule } from './alertas/alertas.module';
 import { InventarioMaterialesModule } from './inventario-materiales/inventario-materiales.module';
 import { MailModule } from './common/mail/mail.module';
+import { ActividadesDiariasModule } from './actividades-diarias/actividades-diarias.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { MailModule } from './common/mail/mail.module';
     ProyectosModule,
     AlertasModule,
     InventarioMaterialesModule,
+    ActividadesDiariasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
