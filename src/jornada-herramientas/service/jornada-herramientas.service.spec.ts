@@ -313,15 +313,61 @@ describe('JornadaHerramientasService', () => {
               id: 101,
               herramienta: { id: 2, codigoUnico: 'HERR-0002', nombre: 'Sierra' },
               estadoInicio: 'AUSENTE',
+              observacionInicio: 'No estaba en bodega',
             },
           ],
         }),
       );
+      repo.crearIncidenciaAusencia.mockResolvedValue({ id: 55 });
       repo.confirmarInicio.mockResolvedValue(jornadaMock());
 
       await service.confirmarInicio(1, jefe.id);
 
       expect(repo.confirmarInicio).toHaveBeenCalledWith(1);
+    });
+
+    it('resuelve de una vez el retorno de las herramientas ausentes desde el inicio, con su propia incidencia', async () => {
+      const { repo, service, movimientos } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(
+        jornadaMock({
+          items: [
+            {
+              id: 100,
+              herramienta: { id: 1, codigoUnico: 'HERR-0001', nombre: 'Taladro' },
+              estadoInicio: 'VERIFICADA',
+            },
+            {
+              id: 101,
+              herramienta: { id: 2, codigoUnico: 'HERR-0002', nombre: 'Sierra' },
+              estadoInicio: 'AUSENTE',
+              observacionInicio: 'No estaba en bodega',
+            },
+          ],
+        }),
+      );
+      repo.crearIncidenciaAusencia.mockResolvedValue({ id: 55 });
+      repo.confirmarInicio.mockResolvedValue(jornadaMock());
+
+      await service.confirmarInicio(1, jefe.id);
+
+      expect(repo.crearIncidenciaAusencia).toHaveBeenCalledTimes(1);
+      expect(repo.crearIncidenciaAusencia).toHaveBeenCalledWith(
+        expect.objectContaining({
+          proyectoId: 10,
+          descripcion: 'No estaba en bodega',
+          prioridad: 'ALTA',
+        }),
+      );
+      expect(repo.actualizarItemRetorno).toHaveBeenCalledWith(
+        101,
+        'AUSENTE',
+        'No estaba en bodega',
+        55,
+      );
+      // La herramienta verificada en el inicio no se toca en este paso.
+      expect(repo.actualizarItemRetorno).toHaveBeenCalledTimes(1);
+      expect(movimientos.create).not.toHaveBeenCalled();
     });
 
     it('rechaza confirmar dos veces la misma jornada', async () => {

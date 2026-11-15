@@ -207,6 +207,30 @@ export class JornadaHerramientasService {
         statusCode: 400,
       });
     }
+
+    // Una herramienta ausente desde el inicio nunca estuvo con el técnico,
+    // así que no tiene sentido preguntar por su retorno en la tarde: se
+    // resuelve de una vez (con su propia incidencia) al confirmar el inicio.
+    const ausentesDesdeInicio = jornada.items.filter(
+      (i) => i.estadoInicio === 'AUSENTE',
+    );
+    for (const item of ausentesDesdeInicio) {
+      const incidencia = await this.repo.crearIncidenciaAusencia({
+        proyectoId: jornada.proyectoId,
+        usuarioId,
+        titulo: `Herramienta no disponible al inicio de jornada: ${item.herramienta.nombre} (${item.herramienta.codigoUnico})`,
+        descripcion: item.observacionInicio!,
+        fecha: jornada.fecha,
+        prioridad: 'ALTA',
+      });
+      await this.repo.actualizarItemRetorno(
+        item.id,
+        'AUSENTE',
+        item.observacionInicio,
+        incidencia.id,
+      );
+    }
+
     return this.repo.confirmarInicio(jornadaId);
   }
 
