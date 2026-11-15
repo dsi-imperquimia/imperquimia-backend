@@ -13,6 +13,7 @@ export interface DatosCrearActividad {
 }
 
 export interface DatosActualizarActividad {
+  proyectoId?: number;
   fecha?: Date;
   nombre: string;
   descripcion: string;
@@ -133,6 +134,9 @@ export class ActividadesDiariasRepository {
     return this.prisma.actividadDiaria.update({
       where: { id },
       data: {
+        ...(datos.proyectoId !== undefined
+          ? { proyectoId: datos.proyectoId }
+          : {}),
         ...(datos.fecha ? { fecha: datos.fecha } : {}),
         nombre: datos.nombre,
         descripcion: datos.descripcion,

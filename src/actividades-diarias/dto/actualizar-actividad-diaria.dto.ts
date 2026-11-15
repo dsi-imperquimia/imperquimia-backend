@@ -1,12 +1,21 @@
+import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export class ActualizarActividadDiariaDto {
+  @Type(() => Number)
+  @IsInt({ message: 'Selecciona un proyecto válido.' })
+  @Min(1, { message: 'Selecciona un proyecto válido.' })
+  @IsOptional()
+  proyectoId?: number;
+
   @IsDateString(
     {},
     { message: 'Ingresa una fecha válida en formato AAAA-MM-DD.' },

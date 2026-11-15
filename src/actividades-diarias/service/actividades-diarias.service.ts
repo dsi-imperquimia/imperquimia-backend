@@ -123,33 +123,18 @@ export class ActividadesDiariasService {
     if (!usuario) {
       throw new ForbiddenException('Usuario no disponible.');
     }
-    if (!proyecto) {
-      throw new NotFoundException('Proyecto no encontrado.');
-    }
-    if (proyecto.estado !== 'ACTIVO') {
-      throw new BadRequestException(
-        'Solo se pueden registrar actividades en proyectos activos.',
-      );
-    }
-
-    const esAdmin = this.esAdministrador(usuario.role?.name);
-    if (!esAdmin) {
-      const empleadoId = usuario.empleadoId;
-      const esJefe =
-        Boolean(empleadoId) && proyecto.jefeProyectoId === empleadoId;
-      if (!esJefe) {
-        throw new ForbiddenException(
-          'Solo el jefe de proyecto asignado puede registrar actividades diarias.',
-        );
-      }
-    }
+    const proyectoValido = this.validarProyectoDisponible(
+      proyecto,
+      usuario,
+      'Solo el jefe de proyecto asignado puede registrar actividades diarias.',
+    );
 
     const observaciones = dto.observaciones?.trim() || undefined;
 
     try {
       const actividad = await this.repo.crear({
         claveOperacion: dto.claveOperacion,
-        proyectoId: proyecto.id,
+        proyectoId: proyectoValido.id,
         usuarioId: usuario.id,
         empleadoId: usuario.empleadoId,
         fecha,
@@ -215,14 +200,62 @@ export class ActividadesDiariasService {
       }
     }
 
+    let proyectoIdActualizado: number | undefined;
+    if (
+      dto.proyectoId !== undefined &&
+      dto.proyectoId !== actividad.proyectoId
+    ) {
+      const proyectoDestino = this.validarProyectoDisponible(
+        await this.repo.findProyecto(dto.proyectoId),
+        usuario,
+        'Solo el jefe de proyecto asignado puede asociar el registro a ese proyecto.',
+      );
+      proyectoIdActualizado = proyectoDestino.id;
+    }
+
     const observaciones = dto.observaciones?.trim() || null;
 
     return this.repo.actualizar(id, {
+      ...(proyectoIdActualizado !== undefined
+        ? { proyectoId: proyectoIdActualizado }
+        : {}),
       fecha,
       nombre,
       descripcion,
       observaciones,
     });
+  }
+
+  private validarProyectoDisponible<
+    T extends { estado: string; jefeProyectoId: number | null },
+  >(
+    proyecto: T | null,
+    usuario: {
+      empleadoId: number | null;
+      role?: { name?: string | null } | null;
+    },
+    mensajeSinPermiso: string,
+  ): T {
+    if (!proyecto) {
+      throw new NotFoundException('Proyecto no encontrado.');
+    }
+    if (proyecto.estado !== 'ACTIVO') {
+      throw new BadRequestException(
+        'Solo se pueden registrar o asociar actividades en proyectos activos.',
+      );
+    }
+
+    const esAdmin = this.esAdministrador(usuario.role?.name);
+    if (!esAdmin) {
+      const esJefe =
+        Boolean(usuario.empleadoId) &&
+        proyecto.jefeProyectoId === usuario.empleadoId;
+      if (!esJefe) {
+        throw new ForbiddenException(mensajeSinPermiso);
+      }
+    }
+
+    return proyecto;
   }
 
   private esAdministrador(rolNombre?: string | null): boolean {

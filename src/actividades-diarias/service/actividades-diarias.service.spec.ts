@@ -475,5 +475,103 @@ describe('ActividadesDiariasService', () => {
       );
       expect(repo.actualizar).toHaveBeenCalled();
     });
+
+    it('permite cambiar el proyecto al editar si el destino está activo y asignado al jefe de proyecto', async () => {
+      const { repo, service } = setup();
+      const hace2Horas = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findById.mockResolvedValue(actividadMock({ createdAt: hace2Horas }));
+      repo.findProyecto.mockResolvedValue({
+        id: 20,
+        nombre: 'Bodega Norte',
+        estado: 'ACTIVO',
+        jefeProyectoId: 7,
+      });
+      repo.actualizar.mockResolvedValue(
+        actividadMock({ proyectoId: 20, createdAt: hace2Horas }),
+      );
+
+      const actualizada = await service.actualizar(
+        1,
+        {
+          proyectoId: 20,
+          nombre: 'Impermeabilización corregida',
+          descripcion: 'Descripción reasignada a otro proyecto',
+        },
+        5,
+      );
+
+      expect(actualizada.proyectoId).toBe(20);
+      expect(repo.actualizar).toHaveBeenCalledWith(1, {
+        proyectoId: 20,
+        fecha: undefined,
+        nombre: 'Impermeabilización corregida',
+        descripcion: 'Descripción reasignada a otro proyecto',
+        observaciones: null,
+      });
+    });
+
+    it('rechaza con 403 al cambiar a un proyecto donde el usuario no es jefe asignado', async () => {
+      const { repo, service } = setup();
+      const hace2Horas = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findById.mockResolvedValue(actividadMock({ createdAt: hace2Horas }));
+      repo.findProyecto.mockResolvedValue({
+        id: 30,
+        nombre: 'Proyecto ajeno',
+        estado: 'ACTIVO',
+        jefeProyectoId: 99,
+      });
+
+      await expect(
+        service.actualizar(
+          1,
+          {
+            proyectoId: 30,
+            nombre: 'Cambio indebido',
+            descripcion: 'Intento de mover actividad',
+          },
+          5,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.actualizar).not.toHaveBeenCalled();
+    });
+
+    it('rechaza con 400 al cambiar a un proyecto que no está activo', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue({
+        id: 1,
+        empleadoId: null,
+        role: { name: 'Administrador' },
+      });
+      repo.findById.mockResolvedValue(actividadMock());
+      repo.findProyecto.mockResolvedValue({
+        id: 40,
+        nombre: 'Obra finalizada',
+        estado: 'FINALIZADO',
+        jefeProyectoId: null,
+      });
+
+      await expect(
+        service.actualizar(
+          1,
+          {
+            proyectoId: 40,
+            nombre: 'Cambio a proyecto cerrado',
+            descripcion: 'Intento de asociar a proyecto inactivo',
+          },
+          1,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.actualizar).not.toHaveBeenCalled();
+    });
   });
 });
