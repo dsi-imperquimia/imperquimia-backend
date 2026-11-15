@@ -64,8 +64,12 @@ describe('JornadaHerramientasService', () => {
       actualizarItemInicio: jest.fn(),
       confirmarInicio: jest.fn(),
     };
-    const service = new JornadaHerramientasService(repo as any);
-    return { repo, service };
+    const actividades = { findProyectosDisponibles: jest.fn() };
+    const service = new JornadaHerramientasService(
+      repo as any,
+      actividades as any,
+    );
+    return { repo, service, actividades };
   }
 
   describe('abrir', () => {

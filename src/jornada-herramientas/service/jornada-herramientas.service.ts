@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ActividadesDiariasService } from '@/actividades-diarias/service/actividades-diarias.service';
 import { AbrirJornadaHerramientasDto } from '../dto/abrir-jornada-herramientas.dto';
 import { VerificarItemInicioDto } from '../dto/verificar-item-inicio.dto';
 import { JornadaHerramientasRepository } from '../repository/jornada-herramientas.repository';
@@ -17,7 +18,15 @@ type UsuarioAcceso = {
 
 @Injectable()
 export class JornadaHerramientasService {
-  constructor(private readonly repo: JornadaHerramientasRepository) {}
+  constructor(
+    private readonly repo: JornadaHerramientasRepository,
+    private readonly actividades: ActividadesDiariasService,
+  ) {}
+
+  /** Proyectos en los que el usuario puede verificar herramientas (mismo criterio que actividades/incidencias). */
+  findProyectosDisponibles(usuarioId: number) {
+    return this.actividades.findProyectosDisponibles(usuarioId);
+  }
 
   async abrir(dto: AbrirJornadaHerramientasDto, usuarioId: number) {
     const usuario = await this.obtenerUsuario(usuarioId);

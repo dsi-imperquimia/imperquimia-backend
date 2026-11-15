@@ -26,6 +26,12 @@ const LECTURA = ['JORNADA_HERRAMIENTA_READ', 'JORNADA_HERRAMIENTA_VERIFY'];
 export class JornadaHerramientasController {
   constructor(private readonly service: JornadaHerramientasService) {}
 
+  @Get('proyectos-disponibles')
+  @JornadaHerramientasPermissions(...LECTURA)
+  proyectosDisponibles(@CurrentUser() user: JwtPayload) {
+    return this.service.findProyectosDisponibles(user.sub);
+  }
+
   @Post()
   @JornadaHerramientasPermissions('JORNADA_HERRAMIENTA_VERIFY')
   abrir(
