@@ -17,6 +17,7 @@ import { AlertasModule } from './alertas/alertas.module';
 import { InventarioMaterialesModule } from './inventario-materiales/inventario-materiales.module';
 import { MailModule } from './common/mail/mail.module';
 import { ActividadesDiariasModule } from './actividades-diarias/actividades-diarias.module';
+import { IncidenciasModule } from './incidencias/incidencias.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ActividadesDiariasModule } from './actividades-diarias/actividades-diar
     AlertasModule,
     InventarioMaterialesModule,
     ActividadesDiariasModule,
+    IncidenciasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

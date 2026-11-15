@@ -46,6 +46,8 @@ model User {
   auditoriasAlerta           AuditoriaAlerta[]
   actividadesDiarias         ActividadDiaria[]
   evidenciasActividades      EvidenciaActividadDiaria[]
+  incidenciasReportadas      Incidencia[]
+  historialIncidencias       HistorialIncidencia[]
 
   @@map("mnt_users")
 }
@@ -449,6 +451,7 @@ model Proyecto {
   configuracionesAlerta     ConfiguracionAlerta[]
   notificacionesAlerta      NotificacionAlerta[]
   actividadesDiarias        ActividadDiaria[]
+  incidencias               Incidencia[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -635,7 +638,8 @@ model ActividadDiaria {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  evidencias EvidenciaActividadDiaria[]
+  evidencias  EvidenciaActividadDiaria[]
+  incidencias Incidencia[]
 
   @@index([proyectoId, fecha])
   @@index([usuarioId, fecha])
@@ -660,4 +664,64 @@ model EvidenciaActividadDiaria {
 
   @@index([actividadDiariaId, deletedAt])
   @@map("proy_actividades_evidencias")
+}
+
+// ==========================================
+// MODELO: INCIDENCIAS EN OBRA (GPRCIMPER-141 y 142)
+// ==========================================
+enum PrioridadIncidencia {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum EstadoIncidencia {
+  ABIERTA
+  EN_PROCESO
+  RESUELTA
+}
+
+model Incidencia {
+  id             Int                 @id @default(autoincrement())
+  claveOperacion String              @unique @map("clave_operacion") @db.Uuid
+  proyectoId     Int                 @map("proyecto_id")
+  proyecto       Proyecto            @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  usuarioId      Int                 @map("usuario_id")
+  usuario        User                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  titulo         String              @db.VarChar(150)
+  descripcion    String              @db.Text
+  fecha          DateTime            @db.Date
+  prioridad      PrioridadIncidencia @default(MEDIA)
+  estado         EstadoIncidencia    @default(ABIERTA)
+  // Jornada (reporte diario) a la que está vinculada; una incidencia
+  // pertenece como máximo a un reporte (GPRCIMPER-142).
+  actividadDiariaId Int?             @map("actividad_diaria_id")
+  actividadDiaria   ActividadDiaria? @relation(fields: [actividadDiariaId], references: [id], onDelete: SetNull)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  deletedAt      DateTime?           @map("deleted_at")
+
+  historial HistorialIncidencia[]
+
+  @@index([proyectoId, estado])
+  @@index([actividadDiariaId])
+  @@map("proy_incidencias")
+}
+
+// Una fila por cada cambio de estado; la primera (estadoAnterior nulo)
+// registra la creación de la incidencia.
+model HistorialIncidencia {
+  id             Int               @id @default(autoincrement())
+  incidenciaId   Int               @map("incidencia_id")
+  incidencia     Incidencia        @relation(fields: [incidenciaId], references: [id], onDelete: Cascade)
+  usuarioId      Int               @map("usuario_id")
+  usuario        User              @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  estadoAnterior EstadoIncidencia? @map("estado_anterior")
+  estadoNuevo    EstadoIncidencia  @map("estado_nuevo")
+  comentario     String?           @db.Text
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  @@index([incidenciaId, createdAt])
+  @@map("proy_incidencias_historial")
 }
