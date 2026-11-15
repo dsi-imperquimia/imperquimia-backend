@@ -119,6 +119,10 @@ export class ProyectoRepository {
   }
 
   // Retira del origen y asigna al destino en una sola transacción (GPRCIMPER-84).
+  // Si el destino ya tenía una fila de este empleado de un paso anterior
+  // (reasignaciones de ida y vuelta), se limpia vistaAt: sin esto, "Mis
+  // proyectos" (GPRCIMPER-122) mostraría la nueva asignación como "Vista"
+  // desde el principio, arrastrando el estado de la asignación vieja.
   reasignarEmpleado(origenId: number, destinoId: number, empleadoId: number) {
     return this.prisma.$transaction([
       this.prisma.proyectoEmpleado.updateMany({
@@ -128,7 +132,7 @@ export class ProyectoRepository {
       this.prisma.proyectoEmpleado.upsert({
         where: { proyectoId_empleadoId: { proyectoId: destinoId, empleadoId } },
         create: { proyectoId: destinoId, empleadoId },
-        update: { fechaAsignacion: new Date(), fechaRetiro: null },
+        update: { fechaAsignacion: new Date(), fechaRetiro: null, vistaAt: null },
       }),
     ]);
   }
