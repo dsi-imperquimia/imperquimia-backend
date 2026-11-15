@@ -58,7 +58,10 @@ const COLUMNAS: readonly ColumnaTabla[] = [
     header: 'Descripción',
     widthPdf: 220,
     widthExcel: 46,
-    valor: (a) => a.descripcion,
+    valor: (a) =>
+      a.descripcion?.trim()
+        ? a.descripcion
+        : 'Pendiente de registrar (generada por el sistema)',
   },
   {
     header: 'Observaciones',

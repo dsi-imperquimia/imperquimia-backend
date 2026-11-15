@@ -178,29 +178,35 @@ export class ActividadesDiariasRepository {
     fecha: Date;
     nombre: string;
   }) {
-    const existente = await this.prisma.actividadDiaria.findFirst({
-      where: {
-        proyectoId: datos.proyectoId,
-        fecha: datos.fecha,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-    if (existente) {
-      return existente;
-    }
-    return this.prisma.actividadDiaria.create({
-      data: {
-        claveOperacion: randomUUID(),
-        proyectoId: datos.proyectoId,
-        usuarioId: datos.usuarioId,
-        empleadoId: datos.empleadoId,
-        fecha: datos.fecha,
-        nombre: datos.nombre,
-        descripcion: '',
-        observaciones: null,
-      },
-      select: { id: true },
+    const fechaKey = Math.floor(datos.fecha.getTime() / 86_400_000);
+    return this.prisma.$transaction(async (tx) => {
+      // Serializa la creación automática por (proyecto, día) ante peticiones concurrentes.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${datos.proyectoId}::int, ${fechaKey}::int)`;
+
+      const existente = await tx.actividadDiaria.findFirst({
+        where: {
+          proyectoId: datos.proyectoId,
+          fecha: datos.fecha,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (existente) {
+        return existente;
+      }
+      return tx.actividadDiaria.create({
+        data: {
+          claveOperacion: randomUUID(),
+          proyectoId: datos.proyectoId,
+          usuarioId: datos.usuarioId,
+          empleadoId: datos.empleadoId,
+          fecha: datos.fecha,
+          nombre: datos.nombre,
+          descripcion: '',
+          observaciones: null,
+        },
+        select: { id: true },
+      });
     });
   }
 

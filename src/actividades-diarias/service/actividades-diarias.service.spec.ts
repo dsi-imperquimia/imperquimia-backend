@@ -730,5 +730,51 @@ describe('ActividadesDiariasService', () => {
       expect(repo.crear).not.toHaveBeenCalled();
       expect(resultado.repetido).toBe(false);
     });
+
+    it('usa la misma fecha de El Salvador al generar y validar registros nocturnos sin marcarlos como futuros', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-15T05:51:00.000Z'));
+      try {
+        const { repo, service } = setup();
+        const asegurarActividadDelDia = jest.fn().mockResolvedValue({ id: 77 });
+        (repo as any).asegurarActividadDelDia = asegurarActividadDelDia;
+        repo.findUsuario.mockResolvedValue({
+          id: 5,
+          empleadoId: 7,
+          role: { name: 'Jefe de proyecto' },
+        });
+        repo.findProyecto.mockResolvedValue({
+          id: 10,
+          nombre: 'Edificio Central',
+          estado: 'ACTIVO',
+          jefeProyectoId: 7,
+        });
+        repo.findPorProyecto.mockResolvedValue([]);
+
+        await service.findActividades(5, 10);
+
+        expect(asegurarActividadDelDia).toHaveBeenCalledWith(
+          expect.objectContaining({
+            fecha: new Date('2026-11-14T00:00:00.000Z'),
+            nombre: 'Bitácora del día 2026-11-14',
+          }),
+        );
+
+        repo.findByClave.mockResolvedValue(null);
+        repo.crear.mockResolvedValue(actividadMock());
+        await service.registrar(
+          {
+            claveOperacion: uuid,
+            proyectoId: 10,
+            fecha: '2026-11-14',
+            nombre: 'Bitácora del día 2026-11-14',
+            descripcion: 'Registro completado de noche',
+          },
+          5,
+        );
+        expect(repo.crear).toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 });

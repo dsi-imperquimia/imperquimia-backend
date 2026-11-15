@@ -55,15 +55,22 @@ export class ActividadesDiariasService {
     );
   }
 
-  private obtenerFechaActualUtc(): { fecha: Date; iso: string } {
-    const ahora = new Date();
-    const fecha = new Date(
-      Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate()),
-    );
-    return {
-      fecha,
-      iso: fecha.toISOString().slice(0, 10),
-    };
+  private obtenerFechaActualNegocio(): { fecha: Date; iso: string } {
+    const iso = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/El_Salvador',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const fecha = this.parsearFechaCalendar(iso);
+    if (!fecha) {
+      const ahora = new Date();
+      const fallback = new Date(
+        Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()),
+      );
+      return { fecha: fallback, iso: fallback.toISOString().slice(0, 10) };
+    }
+    return { fecha, iso };
   }
 
   private async obtenerActividadesFiltradas(
@@ -81,7 +88,7 @@ export class ActividadesDiariasService {
       fechaFin,
     );
     const esAdmin = this.esAdministrador(usuario.role?.name);
-    const hoy = this.obtenerFechaActualUtc();
+    const hoy = this.obtenerFechaActualNegocio();
     const nombreDefecto = `Bitácora del día ${hoy.iso}`;
     if (proyectoId === undefined) {
       await this.repo.asegurarActividadesDelDiaAccesibles?.({
@@ -444,11 +451,8 @@ export class ActividadesDiariasService {
       });
     }
 
-    const ahora = new Date();
-    const hoyUtc = new Date(
-      Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()),
-    );
-    if (fecha > hoyUtc) {
+    const { fecha: hoyNegocio } = this.obtenerFechaActualNegocio();
+    if (fecha > hoyNegocio) {
       throw new BadRequestException({
         message: {
           fecha: ['La fecha no puede ser futura.'],
