@@ -175,6 +175,11 @@ export class IncidenciasService {
     return this.repo.actualizar(id, data);
   }
 
+  async eliminar(id: number, usuarioId: number) {
+    await this.findOne(id, usuarioId);
+    return this.repo.eliminar(id);
+  }
+
   async cambiarEstado(
     id: number,
     dto: CambiarEstadoIncidenciaDto,

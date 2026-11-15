@@ -107,6 +107,7 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 39, name: 'INCIDENCIA_CREATE', description: 'Permiso para registrar incidencias en obra' },
     { id: 40, name: 'INCIDENCIA_READ', description: 'Permiso para consultar incidencias en obra' },
     { id: 41, name: 'INCIDENCIA_UPDATE', description: 'Permiso para editar incidencias y cambiar su estado' },
+    { id: 42, name: 'INCIDENCIA_DELETE', description: 'Permiso para eliminar incidencias en obra' },
   ];
 
   const permissions: PermissionType[] = [

@@ -49,6 +49,7 @@ describe('IncidenciasService', () => {
       crear: jest.fn(),
       actualizar: jest.fn(),
       cambiarEstado: jest.fn(),
+      eliminar: jest.fn(),
       findActividad: jest.fn(),
       findPorIds: jest.fn(),
       reemplazarVinculos: jest.fn(),
@@ -259,6 +260,43 @@ describe('IncidenciasService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(repo.crear).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('eliminar (GPRCIMPER-141)', () => {
+    it('elimina de forma lógica la incidencia del jefe del proyecto', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(jefe);
+      repo.findById.mockResolvedValue(incidenciaMock());
+      repo.eliminar.mockResolvedValue({ id: 1 });
+
+      await expect(service.eliminar(1, 5)).resolves.toEqual({ id: 1 });
+      expect(repo.eliminar).toHaveBeenCalledWith(1);
+    });
+
+    it('permite eliminar a un administrador aunque no sea jefe', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(admin);
+      repo.findById.mockResolvedValue(incidenciaMock());
+      repo.eliminar.mockResolvedValue({ id: 1 });
+
+      await service.eliminar(1, 1);
+      expect(repo.eliminar).toHaveBeenCalledWith(1);
+    });
+
+    it('rechaza a otro jefe y no elimina incidencias inexistentes', async () => {
+      const { repo, service } = setup();
+      repo.findUsuario.mockResolvedValue(otroJefe);
+      repo.findById.mockResolvedValue(incidenciaMock());
+      await expect(service.eliminar(1, 6)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      repo.findById.mockResolvedValue(null);
+      await expect(service.eliminar(9, 6)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(repo.eliminar).not.toHaveBeenCalled();
     });
   });
 

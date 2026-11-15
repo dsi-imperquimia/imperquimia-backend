@@ -3,6 +3,7 @@ import type { JwtPayload } from '@/common/decorators/current-user.decorator';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -77,6 +78,15 @@ export class IncidenciasController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.actualizar(id, dto, user.sub);
+  }
+
+  @Delete('incidencias/:id')
+  @IncidenciasPermissions('INCIDENCIA_DELETE')
+  eliminar(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.eliminar(id, user.sub);
   }
 
   @Patch('incidencias/:id/estado')

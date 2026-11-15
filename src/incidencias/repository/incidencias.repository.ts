@@ -147,6 +147,15 @@ export class IncidenciasRepository {
     });
   }
 
+  /** Borrado lógico: conserva el historial y deja de listarse. */
+  eliminar(id: number) {
+    return this.prisma.incidencia.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+      select: { id: true },
+    });
+  }
+
   findActividad(id: number) {
     return this.prisma.actividadDiaria.findFirst({
       where: { id, deletedAt: null },
