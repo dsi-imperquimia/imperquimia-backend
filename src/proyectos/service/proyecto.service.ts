@@ -87,19 +87,19 @@ export class ProyectoService {
         );
       }
       if (
-        !Number.isFinite(detalle.cantidad) ||
-        detalle.cantidad <= 0 ||
+        !Number.isSafeInteger(detalle.cantidad) ||
+        detalle.cantidad < 1 ||
         !Number.isInteger(detalle.materialId) ||
         detalle.materialId <= 0
       ) {
         throw new BadRequestException(
-          'Selecciona un material y una cantidad mayor que cero.',
+          'Selecciona un material y una cantidad entera mayor que cero.',
         );
       }
       const cantidad = new Prisma.Decimal(detalle.cantidad);
-      if (cantidad.decimalPlaces() > 2 || cantidad.greaterThan('99999999.99')) {
+      if (cantidad.greaterThan('99999999')) {
         throw new BadRequestException(
-          'La cantidad admite hasta dos decimales.',
+          'La cantidad supera el máximo permitido.',
         );
       }
       const costoUnitario = anterior?.costoUnitario ?? material.costoUnitario;
@@ -169,8 +169,8 @@ export class ProyectoService {
 
   async update(id: number, dto: UpdateProyectoDto) {
     const actual = await this.findOne(id);
-    if (actual.estado === 'CANCELADO') {
-      throw new ConflictException('No se puede editar un proyecto cancelado.');
+    if (actual.estado !== 'ACTIVO') {
+      throw new ConflictException('Solo se puede editar un proyecto activo.');
     }
     const cancelando = dto.estado === 'CANCELADO';
     const motivo = dto.motivo?.trim();
@@ -250,8 +250,8 @@ export class ProyectoService {
   async cancelar(id: number, motivo: string) {
     const proyecto = await this.findOne(id);
 
-    if (proyecto.estado === 'CANCELADO') {
-      throw new ConflictException('El proyecto ya está cancelado.');
+    if (proyecto.estado !== 'ACTIVO') {
+      throw new ConflictException('Solo se puede cancelar un proyecto activo.');
     }
 
     const cancelado = await this.repo.cancelar(id, motivo);
@@ -356,9 +356,9 @@ export class ProyectoService {
 
   async asignarEmpleado(proyectoId: number, empleadoId: number) {
     const proyecto = await this.findOne(proyectoId);
-    if (proyecto.estado === 'CANCELADO') {
+    if (proyecto.estado !== 'ACTIVO') {
       throw new ConflictException(
-        'No se puede asignar empleados a un proyecto cancelado.',
+        'Solo se pueden asignar empleados a un proyecto activo.',
       );
     }
     if (!(await this.repo.empleadoDisponible(empleadoId))) {
@@ -379,9 +379,9 @@ export class ProyectoService {
 
   async asignarJefe(proyectoId: number, empleadoId: number) {
     const proyecto = await this.findOne(proyectoId);
-    if (proyecto.estado === 'CANCELADO') {
+    if (proyecto.estado !== 'ACTIVO') {
       throw new ConflictException(
-        'No se puede asignar un jefe a un proyecto cancelado.',
+        'Solo se puede asignar un jefe a un proyecto activo.',
       );
     }
     if (!(await this.repo.empleadoDisponible(empleadoId))) {

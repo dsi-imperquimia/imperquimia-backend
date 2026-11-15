@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { AreaMovimiento, EstadoHerramienta } from '@gen/prisma/client';
 
 @Injectable()
 export class MovimientoRepository {
@@ -30,7 +31,7 @@ export class MovimientoRepository {
 
   findProyectoAsignable(id: number) {
     return this.prisma.proyecto.findFirst({
-      where: { id, deletedAt: null, estado: { not: 'CANCELADO' } },
+      where: { id, deletedAt: null, estado: 'ACTIVO' },
       select: { id: true },
     });
   }
@@ -38,32 +39,44 @@ export class MovimientoRepository {
   async createWithTransaction(data: {
     herramientaId: number;
     usuarioId: number;
-    origen: string;
-    destino: string;
+    origen: AreaMovimiento;
+    destino: AreaMovimiento;
     proyectoDestinoId?: number | null;
-    estadoHerramienta: string;
+    estadoActual: EstadoHerramienta;
+    estadoHerramienta: EstadoHerramienta;
     observaciones?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      const actualizada = await tx.herramienta.updateMany({
+        where: {
+          id: data.herramientaId,
+          ubicacionActual: data.origen,
+          estado: data.estadoActual,
+        },
+        data: {
+          estado: data.estadoHerramienta,
+          ubicacionActual: data.destino,
+          proyectoId:
+            data.destino === AreaMovimiento.PROYECTO
+              ? data.proyectoDestinoId
+              : null,
+        },
+      });
+      if (actualizada.count !== 1) {
+        throw new Error('UBICACION_CAMBIO');
+      }
+
       const movimiento = await tx.movimientoHerramienta.create({
         data: {
           herramienta: { connect: { id: data.herramientaId } },
           usuario: { connect: { id: data.usuarioId } },
-          origen: data.origen as any,
-          destino: data.destino as any,
+          origen: data.origen,
+          destino: data.destino,
           proyectoDestino: data.proyectoDestinoId
             ? { connect: { id: data.proyectoDestinoId } }
             : undefined,
-          estadoHerramienta: data.estadoHerramienta as any,
+          estadoHerramienta: data.estadoHerramienta,
           observaciones: data.observaciones,
-        },
-      });
-
-      await tx.herramienta.update({
-        where: { id: data.herramientaId },
-        data: {
-          estado: data.estadoHerramienta as any,
-          proyectoId: data.destino === 'PROYECTO' ? data.proyectoDestinoId : null,
         },
       });
 

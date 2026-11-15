@@ -9,6 +9,7 @@ import { seedInventarioMateriales } from './inventarioMateriales';
 import { seedMateriales } from './materiales';
 import { seedProyectos } from './proyectos';
 import { seedRoles } from './roolesSeed';
+import { seedUbicacionesHerramientas } from './ubicacionesHerramientas';
 import { seedUsers } from './users';
 
 const prisma = new PrismaClient({
@@ -22,6 +23,7 @@ async function main() {
   await seedMateriales(prisma);
   await seedProyectos(prisma);
   await seedInventarioMateriales(prisma);
+  await seedUbicacionesHerramientas(prisma);
   await fixSequences(prisma);
 }
 

@@ -65,6 +65,14 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 28, name: 'HERRAMIENTA_DELETE', description: 'Permiso para eliminar herramientas' },
   ];
 
+  const herramientasAsignadasPermissions: PermissionType[] = [
+    {
+      id: 49,
+      name: 'HERRAMIENTA_ASIGNADA_READ',
+      description: 'Permiso para consultar herramientas de proyectos asignados',
+    },
+  ];
+
   const alertasPermissions: PermissionType[] = [
     {
       id: 32,
@@ -93,6 +101,20 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 29, name: 'INVENTARIO_MATERIAL_READ', description: 'Permiso para consultar existencias y movimientos de materiales' },
     { id: 30, name: 'INVENTARIO_MATERIAL_ENTRY', description: 'Permiso para registrar entradas de materiales' },
     { id: 31, name: 'INVENTARIO_MATERIAL_EXIT', description: 'Permiso para registrar salidas de materiales' },
+    { id: 43, name: 'CONSUMO_MATERIAL_READ', description: 'Permiso para consultar consumos y mermas de materiales' },
+    { id: 44, name: 'CONSUMO_MATERIAL_CREATE', description: 'Permiso para registrar y corregir consumos y mermas de materiales' },
+  ];
+
+  // prettier-ignore
+  const reportesDefectoPermissions: PermissionType[] = [
+    { id: 45, name: 'HERRAMIENTA_DEFECTO_READ', description: 'Permiso para consultar reportes de herramientas defectuosas' },
+    { id: 46, name: 'HERRAMIENTA_DEFECTO_CREATE', description: 'Permiso para reportar herramientas defectuosas' },
+  ];
+
+  // prettier-ignore
+  const reportesConsumoPermissions: PermissionType[] = [
+    { id: 47, name: 'CONSUMO_DESVIACION_READ', description: 'Permiso para consultar desviaciones de consumo de materiales' },
+    { id: 48, name: 'CONSUMO_REPORTE_PDF', description: 'Permiso para descargar el PDF de consumos por proyecto y periodo' },
   ];
 
   // prettier-ignore
@@ -124,26 +146,41 @@ export async function seedRoles(prisma: PrismaClient) {
     ...proyectoPermissions,
     ...rolePermissions,
     ...herramientasPermissions,
+    ...herramientasAsignadasPermissions,
     ...alertasPermissions,
     ...inventarioMaterialesPermissions,
     ...actividadesDiariasPermissions,
     ...incidenciasPermissions,
+    ...reportesDefectoPermissions,
+    ...reportesConsumoPermissions,
     ...jornadaHerramientasPermissions,
   ];
 
-  for (const permission of permissions) {
-    await prisma.permission.upsert({
-      where: { id: permission.id },
-      update: {
-        description: permission.description,
-        updatedAt: new Date(),
-      },
-      create: permission,
-    });
+  const permisosExistentes = await prisma.permission.findMany({
+    select: { id: true, name: true },
+  });
+  const permisosPorNombre = new Map<string, number>();
+  for (const permiso of permisosExistentes) {
+    if (permisosPorNombre.has(permiso.name)) {
+      throw new Error(`Permiso duplicado por nombre: ${permiso.name}.`);
+    }
+    permisosPorNombre.set(permiso.name, permiso.id);
   }
 
-  console.log(`Seeded ${permissions.length} permissions.`);
-  console.table(permissions, ['id', 'name']);
+  // Conservar el ID real de cada permiso ya asignado a usuarios o roles.
+  // Las bases anteriores pueden tener otros permisos en los IDs sugeridos.
+  const idsOcupados = new Set(permisosExistentes.map(({ id }) => id));
+  let siguienteId =
+    Math.max(0, ...idsOcupados, ...permissions.map(({ id }) => id)) + 1;
+  for (const permiso of permissions) {
+    const idExistente = permisosPorNombre.get(permiso.name);
+    if (idExistente !== undefined) {
+      permiso.id = idExistente;
+    } else if (idsOcupados.has(permiso.id)) {
+      permiso.id = siguienteId++;
+    }
+    idsOcupados.add(permiso.id);
+  }
 
   /**
    * Roles
@@ -166,6 +203,13 @@ export async function seedRoles(prisma: PrismaClient) {
         ),
         ...actividadesDiariasPermissions,
         ...incidenciasPermissions,
+        ...reportesDefectoPermissions,
+        ...inventarioMaterialesPermissions.filter(
+          (p) => p.name === 'CONSUMO_MATERIAL_READ',
+        ),
+        ...reportesConsumoPermissions.filter(
+          (p) => p.name === 'CONSUMO_DESVIACION_READ',
+        ),
         ...jornadaHerramientasPermissions,
       ].map((p) => p.id),
       description: 'Jefe de proyecto',
@@ -177,10 +221,42 @@ export async function seedRoles(prisma: PrismaClient) {
         ...alertasPermissions.filter((p) =>
           ['ALERTA_READ', 'ALERTA_UPDATE'].includes(p.name),
         ),
+        ...reportesDefectoPermissions,
+        ...herramientasAsignadasPermissions,
       ].map((p) => p.id),
       description: 'Técnico',
     },
   ];
+
+  const rolesPorId = new Map(roles.map(({ id, name }) => [id, name]));
+  const rolesPorNombre = new Map(roles.map(({ id, name }) => [name, id]));
+  const rolesExistentes = await prisma.role.findMany({
+    select: { id: true, name: true },
+  });
+  for (const role of rolesExistentes) {
+    const nombreEsperado = rolesPorId.get(role.id);
+    const idEsperado = rolesPorNombre.get(role.name);
+    if (
+      (nombreEsperado && nombreEsperado !== role.name) ||
+      (idEsperado && idEsperado !== role.id)
+    ) {
+      throw new Error(`Conflicto de rol existente: ${role.id} (${role.name}).`);
+    }
+  }
+
+  for (const permission of permissions) {
+    await prisma.permission.upsert({
+      where: { id: permission.id },
+      update: {
+        description: permission.description,
+        updatedAt: new Date(),
+      },
+      create: permission,
+    });
+  }
+
+  console.log(`Seeded ${permissions.length} permissions.`);
+  console.table(permissions, ['id', 'name']);
 
   for (const { permissionIds, ...role } of roles) {
     await prisma.role.upsert({

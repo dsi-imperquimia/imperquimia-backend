@@ -24,26 +24,29 @@ model User {
   email    String @unique
   password String
 
-  cotizaciones                 Cotizacion[]               @relation("CotizacionCreador")
-  cotizacionesEstadoCambiado   Cotizacion[]               @relation("CotizacionCambioEstado")
-  roleId                       Int?                       @map("role_id")
+  cotizaciones                 Cotizacion[]                @relation("CotizacionCreador")
+  cotizacionesEstadoCambiado   Cotizacion[]                @relation("CotizacionCambioEstado")
+  roleId                       Int?                        @map("role_id")
   permissions                  UserPermission[]
-  createdAt                    DateTime                   @default(now()) @map("created_at")
-  updatedAt                    DateTime                   @updatedAt @map("updated_at")
-  deletedAt                    DateTime?                  @map("deleted_at")
-  role                         Role?                      @relation(fields: [roleId], references: [id])
+  createdAt                    DateTime                    @default(now()) @map("created_at")
+  updatedAt                    DateTime                    @updatedAt @map("updated_at")
+  deletedAt                    DateTime?                   @map("deleted_at")
+  role                         Role?                       @relation(fields: [roleId], references: [id])
   // ==========================================
   // RELACIÓN: USER -> EMPLEADO
   // ==========================================
-  empleadoId                   Int?                       @unique @map("empleado_id")
-  empleado                     Empleado?                  @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
+  empleadoId                   Int?                        @unique @map("empleado_id")
+  empleado                     Empleado?                   @relation(fields: [empleadoId], references: [id], onDelete: SetNull)
   movimientos                  MovimientoHerramienta[]
   movimientosMaterial          MovimientoMaterial[]
-  proyectosCreados             Proyecto[]                 @relation("ProyectoCreador")
-  configuracionesAlertaCreadas ConfiguracionAlerta[]      @relation("AlertaConfiguracionCreador")
-  alertasRecibidas             NotificacionAlerta[]       @relation("AlertaDestinatario")
-  alertasCreadas               NotificacionAlerta[]       @relation("AlertaCreador")
+  proyectosCreados             Proyecto[]                  @relation("ProyectoCreador")
+  configuracionesAlertaCreadas ConfiguracionAlerta[]       @relation("AlertaConfiguracionCreador")
+  alertasRecibidas             NotificacionAlerta[]        @relation("AlertaDestinatario")
+  alertasCreadas               NotificacionAlerta[]        @relation("AlertaCreador")
   auditoriasAlerta             AuditoriaAlerta[]
+  consumosMaterial             ConsumoMaterial[]           @relation("ConsumoMaterialAutor")
+  consumosAnulados             ConsumoMaterial[]           @relation("ConsumoMaterialAnulador")
+  reportesDefecto              ReporteDefectoHerramienta[]
   actividadesDiarias           ActividadDiaria[]
   evidenciasActividades        EvidenciaActividadDiaria[]
   incidenciasReportadas        Incidencia[]
@@ -226,6 +229,8 @@ model Material {
   detallesProyecto DetalleProyecto[]
   existencias      ExistenciaMaterial[]
   movimientos      MovimientoMaterial[]
+  consumos         ConsumoMaterial[]
+  desviaciones     DesviacionConsumo[]
 
   @@map("mnt_materiales")
 }
@@ -239,7 +244,14 @@ enum EstadoHerramienta {
   EN_PROYECTO
   MANTENIMIENTO
   DANADA
+  REQUIERE_REVISION
   DESECHO
+}
+
+enum EstadoReporteDefecto {
+  REQUIERE_REVISION
+  REVISADO
+  CERRADO
 }
 
 enum AreaMovimiento {
@@ -265,7 +277,34 @@ enum MotivoMovimientoMaterial {
   DEVOLUCION_PROYECTO
   USO_PROYECTO
   VENTA
+  CONSUMO_PROYECTO
+  MERMA_PROYECTO
+  CIERRE_PROYECTO
+  REVERSO_CONSUMO
   OTRO
+}
+
+enum ClasificacionConsumoMaterial {
+  PRODUCCION
+  PERDIDA
+  CIERRE
+}
+
+enum FuenteConsumoMaterial {
+  MANUAL
+  BITACORA
+  CIERRE_PROYECTO
+}
+
+enum ReglaDesviacionConsumo {
+  EXCESO_COTIZADO
+  EXCESO_HISTORICO
+}
+
+enum EstadoDesviacionConsumo {
+  PENDIENTE
+  REVISADA
+  DESCARTADA
 }
 
 model UbicacionMaterial {
@@ -316,6 +355,8 @@ model MovimientoMaterial {
   usuario         User                     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   observacion     String?                  @db.Text
   fechaMovimiento DateTime                 @default(now()) @map("fecha_movimiento")
+  consumoAplicado ConsumoMaterial?         @relation("ConsumoMovimientoAplicado")
+  consumoReverso  ConsumoMaterial?         @relation("ConsumoMovimientoReverso")
 
   @@index([materialId, fechaMovimiento])
   @@index([origenId])
@@ -323,23 +364,81 @@ model MovimientoMaterial {
   @@map("inv_movimientos_materiales")
 }
 
+model ConsumoMaterial {
+  id                  Int                          @id @default(autoincrement())
+  claveOperacion      String                       @unique @map("clave_operacion") @db.Uuid
+  proyectoId          Int                          @map("proyecto_id")
+  proyecto            Proyecto                     @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  materialId          Int                          @map("material_id")
+  material            Material                     @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  cantidad            Decimal                      @db.Decimal(12, 2)
+  clasificacion       ClasificacionConsumoMaterial
+  fuente              FuenteConsumoMaterial        @default(MANUAL)
+  motivo              String?                      @db.Text
+  fechaJornada        DateTime                     @map("fecha_jornada") @db.Date
+  actividadReferencia String?                      @map("actividad_referencia")
+  reporteReferencia   String?                      @map("reporte_referencia")
+  movimientoId        Int                          @unique @map("movimiento_id")
+  movimiento          MovimientoMaterial           @relation("ConsumoMovimientoAplicado", fields: [movimientoId], references: [id], onDelete: Restrict)
+  usuarioId           Int                          @map("usuario_id")
+  usuario             User                         @relation("ConsumoMaterialAutor", fields: [usuarioId], references: [id], onDelete: Restrict)
+  claveReverso        String?                      @unique @map("clave_reverso") @db.Uuid
+  movimientoReversoId Int?                         @unique @map("movimiento_reverso_id")
+  movimientoReverso   MovimientoMaterial?          @relation("ConsumoMovimientoReverso", fields: [movimientoReversoId], references: [id], onDelete: Restrict)
+  desviaciones        DesviacionConsumo[]
+  anuladoAt           DateTime?                    @map("anulado_at")
+  anuladoPorId        Int?                         @map("anulado_por_id")
+  anuladoPor          User?                        @relation("ConsumoMaterialAnulador", fields: [anuladoPorId], references: [id], onDelete: Restrict)
+  motivoAnulacion     String?                      @map("motivo_anulacion") @db.Text
+  createdAt           DateTime                     @default(now()) @map("created_at")
+  updatedAt           DateTime                     @default(now()) @updatedAt @map("updated_at")
+
+  @@index([proyectoId, fechaJornada])
+  @@index([materialId, fechaJornada])
+  @@map("proy_consumos_materiales")
+}
+
+model DesviacionConsumo {
+  id              Int                     @id @default(autoincrement())
+  consumoId       Int                     @map("consumo_id")
+  consumo         ConsumoMaterial         @relation(fields: [consumoId], references: [id], onDelete: Restrict)
+  proyectoId      Int                     @map("proyecto_id")
+  proyecto        Proyecto                @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  materialId      Int                     @map("material_id")
+  material        Material                @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  regla           ReglaDesviacionConsumo
+  valorObservado  Decimal                 @map("valor_observado") @db.Decimal(12, 2)
+  valorReferencia Decimal                 @map("valor_referencia") @db.Decimal(12, 2)
+  factorUmbral    Decimal                 @default(1.25) @map("factor_umbral") @db.Decimal(5, 2)
+  estado          EstadoDesviacionConsumo @default(PENDIENTE)
+  activa          Boolean                 @default(true)
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([consumoId, regla])
+  @@index([proyectoId, activa])
+  @@index([materialId])
+  @@map("proy_desviaciones_consumo")
+}
+
 model Herramienta {
-  id            Int               @id @default(autoincrement())
-  codigoUnico   String            @unique @map("codigo_unico")
-  nombre        String
-  marca         String
-  marcaId       Int               @map("marca_id")
-  marcaCatalogo MarcaHerramienta  @relation(fields: [marcaId], references: [id], onDelete: Restrict)
-  tipoId        Int               @map("id_tipo")
-  tipo          TipoHerramienta   @relation(fields: [tipoId], references: [id])
-  estado        EstadoHerramienta @default(DISPONIBLE)
+  id              Int               @id @default(autoincrement())
+  codigoUnico     String            @unique @map("codigo_unico")
+  nombre          String
+  marca           String
+  marcaId         Int               @map("marca_id")
+  marcaCatalogo   MarcaHerramienta  @relation(fields: [marcaId], references: [id], onDelete: Restrict)
+  tipoId          Int               @map("id_tipo")
+  tipo            TipoHerramienta   @relation(fields: [tipoId], references: [id])
+  estado          EstadoHerramienta @default(DISPONIBLE)
+  ubicacionActual AreaMovimiento    @default(BODEGA) @map("ubicacion_actual")
 
   // Si está en un proyecto, tendrá el ID, permitiendo buscar "todas las del proyecto X".
   proyectoId Int?      @map("id_proyecto")
   proyecto   Proyecto? @relation(fields: [proyectoId], references: [id])
 
-  movimientos  MovimientoHerramienta[]
-  jornadaItems JornadaHerramientaItem[]
+  movimientos     MovimientoHerramienta[]
+  reportesDefecto ReporteDefectoHerramienta[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -387,6 +486,24 @@ model MovimientoHerramienta {
   observaciones     String?           @db.Text
 
   @@map("inv_movimientos_herramientas")
+}
+
+model ReporteDefectoHerramienta {
+  id             Int                  @id @default(autoincrement())
+  herramientaId  Int                  @map("herramienta_id")
+  herramienta    Herramienta          @relation(fields: [herramientaId], references: [id], onDelete: Restrict)
+  proyectoId     Int?                 @map("proyecto_id")
+  proyecto       Proyecto?            @relation(fields: [proyectoId], references: [id], onDelete: SetNull)
+  observacion    String?              @db.Text
+  estado         EstadoReporteDefecto @default(REQUIERE_REVISION)
+  reportadoPorId Int                  @map("reportado_por_id")
+  reportadoPor   User                 @relation(fields: [reportadoPorId], references: [id], onDelete: Restrict)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at")
+
+  @@index([herramientaId, createdAt])
+  @@index([proyectoId])
+  @@map("inv_reportes_defecto_herramientas")
 }
 
 // ==========================================
@@ -518,7 +635,10 @@ model Proyecto {
   ubicacionMaterial     UbicacionMaterial?
   configuracionesAlerta ConfiguracionAlerta[]
   notificacionesAlerta  NotificacionAlerta[]
-  actividadesDiarias    ActividadDiaria[]
+  reportesDefecto       ReporteDefectoHerramienta[]
+  consumosMaterial      ConsumoMaterial[]
+  desviacionesConsumo   DesviacionConsumo[]
+  actividadesDiarias     ActividadDiaria[]
   incidencias           Incidencia[]
   jornadasHerramientas  JornadaHerramientas[]
 
