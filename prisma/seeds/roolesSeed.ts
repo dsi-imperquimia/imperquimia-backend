@@ -110,6 +110,12 @@ export async function seedRoles(prisma: PrismaClient) {
     { id: 42, name: 'INCIDENCIA_DELETE', description: 'Permiso para eliminar incidencias en obra' },
   ];
 
+  // prettier-ignore
+  const jornadaHerramientasPermissions: PermissionType[] = [
+    { id: 43, name: 'JORNADA_HERRAMIENTA_READ', description: 'Permiso para consultar el checklist de herramientas de una jornada' },
+    { id: 44, name: 'JORNADA_HERRAMIENTA_VERIFY', description: 'Permiso para verificar el inicio y confirmar el retorno de herramientas de una jornada' },
+  ];
+
   const permissions: PermissionType[] = [
     ...userPermissions,
     ...empleadosPermissions,
@@ -122,6 +128,7 @@ export async function seedRoles(prisma: PrismaClient) {
     ...inventarioMaterialesPermissions,
     ...actividadesDiariasPermissions,
     ...incidenciasPermissions,
+    ...jornadaHerramientasPermissions,
   ];
 
   for (const permission of permissions) {
@@ -159,6 +166,7 @@ export async function seedRoles(prisma: PrismaClient) {
         ),
         ...actividadesDiariasPermissions,
         ...incidenciasPermissions,
+        ...jornadaHerramientasPermissions,
       ].map((p) => p.id),
       description: 'Jefe de proyecto',
     },
