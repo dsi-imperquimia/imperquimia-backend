@@ -8,7 +8,7 @@ import {
 import request from 'supertest';
 import { validationExceptionFactory } from '@/common/pipes/validation-exception.factory';
 import { EmpleadoController } from './controllers/empleado.controller';
-import { EmpleadoService } from './service/empleado.service';
+import { EmpleadoService, calcularPrioridad } from './service/empleado.service';
 import { EmpleadoRepository } from './repository/empleadoRepository';
 import { Prisma } from '@gen/prisma/client';
 
@@ -308,6 +308,24 @@ describe('Empleados: contrato HTTP de habilidades', () => {
       expect(repo.update).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('calcularPrioridad (GPRCIMPER-122, AC1)', () => {
+  it('es alta si el proyecto ya empezó o empieza en los próximos 2 días', () => {
+    expect(calcularPrioridad(new Date('2026-11-10'), '2026-11-12')).toBe('ALTA');
+    expect(calcularPrioridad(new Date('2026-11-12'), '2026-11-12')).toBe('ALTA');
+    expect(calcularPrioridad(new Date('2026-11-14'), '2026-11-12')).toBe('ALTA');
+  });
+
+  it('es media entre 3 y 7 días antes de empezar', () => {
+    expect(calcularPrioridad(new Date('2026-11-15'), '2026-11-12')).toBe('MEDIA');
+    expect(calcularPrioridad(new Date('2026-11-19'), '2026-11-12')).toBe('MEDIA');
+  });
+
+  it('es baja a más de 7 días de empezar, o sin fecha de inicio', () => {
+    expect(calcularPrioridad(new Date('2026-11-20'), '2026-11-12')).toBe('BAJA');
+    expect(calcularPrioridad(null, '2026-11-12')).toBe('BAJA');
+  });
 });
 
 describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {

@@ -5,9 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { diasEntre, fechaLocal } from '@/alertas/alert-schedule';
 import { CreateEmpleadoDto } from '../dto/createEmpleado';
 import { UpdateEmpleadoDto } from '../dto/updateEmpleado';
 import { EmpleadoRepository } from '../repository/empleadoRepository';
+
+const ZONA_HORARIA = process.env.ALERTAS_TIME_ZONE || 'America/El_Salvador';
 
 export interface ProyectoBasico {
   id: number;
@@ -23,18 +26,44 @@ export interface JefeProyectoInfo {
   user: { email: string | null } | null;
 }
 
+export type Prioridad = 'ALTA' | 'MEDIA' | 'BAJA';
+
 export type ItemMiAsignacion = ProyectoBasico & {
   vista: boolean;
   vistaAt: Date | null;
   esJefe: boolean;
+  prioridad: Prioridad;
 };
+
+// Prioridad de una asignación según qué tan cerca está la fecha de inicio
+// del proyecto (GPRCIMPER-122, AC1). Sin fecha de inicio, prioridad baja.
+// `hoy` se recibe en vez de calcularse aquí para que sea una función pura
+// (fácil de probar) y para no repetir Intl.DateTimeFormat por cada ítem.
+export function calcularPrioridad(
+  fechaInicio: Date | null,
+  hoy: string,
+): Prioridad {
+  if (!fechaInicio) return 'BAJA';
+  const inicio = fechaInicio.toISOString().slice(0, 10);
+  const diasParaEmpezar = diasEntre(hoy, inicio);
+  if (diasParaEmpezar <= 2) return 'ALTA';
+  if (diasParaEmpezar <= 7) return 'MEDIA';
+  return 'BAJA';
+}
 
 function aItemAsignacion(
   proyecto: ProyectoBasico,
   vistaAt: Date | null,
   esJefe: boolean,
+  hoy: string,
 ): ItemMiAsignacion {
-  return { ...proyecto, vista: vistaAt !== null, vistaAt, esJefe };
+  return {
+    ...proyecto,
+    vista: vistaAt !== null,
+    vistaAt,
+    esJefe,
+    prioridad: calcularPrioridad(proyecto.fechaInicio, hoy),
+  };
 }
 
 function aContactoJefe(jefeProyecto: JefeProyectoInfo | null) {
@@ -153,13 +182,14 @@ export class EmpleadoService {
       this.repo.findMisProyectosComoJefe(empleadoId),
     ]);
 
+    const hoy = fechaLocal(new Date(), ZONA_HORARIA);
     const jefeIds = new Set(proyectosComoJefe.map((proyecto) => proyecto.id));
     const porId = new Map<number, ItemMiAsignacion>();
 
     for (const { proyecto, vistaAt } of asignaciones) {
       porId.set(
         proyecto.id,
-        aItemAsignacion(proyecto, vistaAt, jefeIds.has(proyecto.id)),
+        aItemAsignacion(proyecto, vistaAt, jefeIds.has(proyecto.id), hoy),
       );
     }
     for (const proyecto of proyectosComoJefe) {
@@ -167,7 +197,7 @@ export class EmpleadoService {
       // Sin fila en proyecto_empleados no hay vistaAt que rastrear: se
       // considera siempre "vista" para no mostrar un pendiente que nunca
       // se puede marcar como leído.
-      porId.set(proyecto.id, aItemAsignacion(proyecto, new Date(), true));
+      porId.set(proyecto.id, aItemAsignacion(proyecto, new Date(), true, hoy));
     }
 
     const items = [...porId.values()];
@@ -183,6 +213,7 @@ export class EmpleadoService {
   // dar 404 (GPRCIMPER-122).
   async miAsignacionDetalle(userId: number, proyectoId: number) {
     const empleadoId = await this.resolveEmpleadoId(userId);
+    const hoy = fechaLocal(new Date(), ZONA_HORARIA);
     const asignacion = await this.repo.findMiAsignacionDetalle(
       empleadoId,
       proyectoId,
@@ -195,6 +226,7 @@ export class EmpleadoService {
         vista: vistaAt !== null,
         vistaAt,
         esJefe: jefeProyectoId === empleadoId,
+        prioridad: calcularPrioridad(datosProyecto.fechaInicio, hoy),
         jefeProyecto: aContactoJefe(jefeProyecto),
       };
     }
@@ -214,6 +246,7 @@ export class EmpleadoService {
       vista: true,
       vistaAt: null,
       esJefe: true,
+      prioridad: calcularPrioridad(datosProyecto.fechaInicio, hoy),
       jefeProyecto: aContactoJefe(jefeProyecto),
     };
   }
