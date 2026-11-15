@@ -91,6 +91,52 @@ export class EmpleadoRepository {
     });
   }
 
+  // Proyectos activos donde el empleado es el jefe de proyecto (no pasa por
+  // la tabla pivote de técnicos) — un jefe también debe ver sus proyectos en
+  // "Mis proyectos" (GPRCIMPER-122).
+  findMisProyectosComoJefe(empleadoId: number) {
+    return this.prisma.proyecto.findMany({
+      where: {
+        jefeProyectoId: empleadoId,
+        deletedAt: null,
+        estado: { notIn: ['FINALIZADO', 'CANCELADO'] },
+      },
+      select: {
+        id: true,
+        nombre: true,
+        ubicacion: true,
+        estado: true,
+        fechaInicio: true,
+        fechaFin: true,
+      },
+      orderBy: { fechaInicio: 'desc' },
+    });
+  }
+
+  // Detalle de un proyecto propio como jefe, mismo shape que
+  // findMiAsignacionDetalle para que el service pueda combinarlos
+  // (GPRCIMPER-122).
+  findMiProyectoComoJefe(empleadoId: number, proyectoId: number) {
+    return this.prisma.proyecto.findFirst({
+      where: { id: proyectoId, jefeProyectoId: empleadoId, deletedAt: null },
+      select: {
+        id: true,
+        nombre: true,
+        ubicacion: true,
+        descripcion: true,
+        estado: true,
+        fechaInicio: true,
+        fechaFin: true,
+        jefeProyecto: {
+          select: {
+            nombreCompleto: true,
+            user: { select: { email: true } },
+          },
+        },
+      },
+    });
+  }
+
   // Detalle de una asignación propia, con datos de contacto del jefe de
   // proyecto (GPRCIMPER-122).
   findMiAsignacionDetalle(empleadoId: number, proyectoId: number) {

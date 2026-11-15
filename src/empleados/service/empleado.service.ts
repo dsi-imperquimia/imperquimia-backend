@@ -108,40 +108,93 @@ export class EmpleadoService {
   }
 
   // Lista de proyectos asignados al técnico autenticado, con contador de
-  // pendientes por visualizar (GPRCIMPER-122).
+  // pendientes por visualizar (GPRCIMPER-122). Un empleado que además es
+  // jefe de proyecto de alguna obra (o solo jefe, sin ser técnico) también
+  // debe verla aquí — esos proyectos no pasan por la tabla pivote de
+  // técnicos, así que se combinan ambas fuentes por id de proyecto.
   async misAsignaciones(userId: number) {
     const empleadoId = await this.resolveEmpleadoId(userId);
-    const asignaciones = await this.repo.findMisAsignaciones(empleadoId);
-    const items = asignaciones.map(({ proyecto, vistaAt }) => ({
-      ...proyecto,
-      vista: vistaAt !== null,
-      vistaAt,
-    }));
+    const [asignaciones, proyectosComoJefe] = await Promise.all([
+      this.repo.findMisAsignaciones(empleadoId),
+      this.repo.findMisProyectosComoJefe(empleadoId),
+    ]);
+
+    const jefeIds = new Set(proyectosComoJefe.map((proyecto) => proyecto.id));
+    const porId = new Map<number, ReturnType<typeof this.aItemAsignacion>>();
+
+    for (const { proyecto, vistaAt } of asignaciones) {
+      porId.set(
+        proyecto.id,
+        this.aItemAsignacion(proyecto, vistaAt, jefeIds.has(proyecto.id)),
+      );
+    }
+    for (const proyecto of proyectosComoJefe) {
+      if (porId.has(proyecto.id)) continue; // ya viene como técnico
+      // Sin fila en proyecto_empleados no hay vistaAt que rastrear: se
+      // considera siempre "vista" para no mostrar un pendiente que nunca
+      // se puede marcar como leído.
+      porId.set(proyecto.id, this.aItemAsignacion(proyecto, new Date(), true));
+    }
+
+    const items = [...porId.values()];
     return {
       items,
       pendientes: items.filter((item) => !item.vista).length,
     };
   }
 
+  private aItemAsignacion(
+    proyecto: {
+      id: number;
+      nombre: string;
+      ubicacion: string | null;
+      estado: string;
+      fechaInicio: Date | null;
+      fechaFin: Date | null;
+    },
+    vistaAt: Date | null,
+    esJefe: boolean,
+  ) {
+    return { ...proyecto, vista: vistaAt !== null, vistaAt, esJefe };
+  }
+
   // Detalle de una asignación propia. No marca la visualización por sí
-  // sola: el frontend llama a marcarVista al abrir el detalle.
+  // sola: el frontend llama a marcarVista al abrir el detalle. Si el
+  // empleado no es técnico en el proyecto, se intenta como jefe antes de
+  // dar 404 (GPRCIMPER-122).
   async miAsignacionDetalle(userId: number, proyectoId: number) {
     const empleadoId = await this.resolveEmpleadoId(userId);
     const asignacion = await this.repo.findMiAsignacionDetalle(
       empleadoId,
       proyectoId,
     );
-    if (!asignacion) {
+    if (asignacion) {
+      const { proyecto, vistaAt } = asignacion;
+      const { jefeProyecto, ...datosProyecto } = proyecto;
+      return {
+        ...datosProyecto,
+        vista: vistaAt !== null,
+        vistaAt,
+        jefeProyecto: jefeProyecto
+          ? { nombreCompleto: jefeProyecto.nombreCompleto, email: jefeProyecto.user?.email ?? null }
+          : null,
+      };
+    }
+
+    const proyectoComoJefe = await this.repo.findMiProyectoComoJefe(
+      empleadoId,
+      proyectoId,
+    );
+    if (!proyectoComoJefe) {
       throw new NotFoundException(
         'No tienes una asignación vigente en este proyecto.',
       );
     }
-    const { proyecto, vistaAt } = asignacion;
-    const { jefeProyecto, ...datosProyecto } = proyecto;
+    const { jefeProyecto, ...datosProyecto } = proyectoComoJefe;
     return {
       ...datosProyecto,
-      vista: vistaAt !== null,
-      vistaAt,
+      vista: true,
+      vistaAt: null,
       jefeProyecto: jefeProyecto
         ? { nombreCompleto: jefeProyecto.nombreCompleto, email: jefeProyecto.user?.email ?? null }
         : null,
