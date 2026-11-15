@@ -42,4 +42,10 @@ export class CrearIncidenciaDto {
     message: 'La prioridad debe ser BAJA, MEDIA, ALTA o CRITICA.',
   })
   prioridad?: PrioridadIncidencia;
+  /** Jornada (reporte diario) a la que se vincula la incidencia al crearla. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'Selecciona un reporte de jornada válido.' })
+  @Min(1, { message: 'Selecciona un reporte de jornada válido.' })
+  actividadDiariaId?: number;
 }

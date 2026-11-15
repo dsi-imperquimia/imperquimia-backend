@@ -51,7 +51,6 @@ describe('IncidenciasService', () => {
       cambiarEstado: jest.fn(),
       findActividad: jest.fn(),
       findPorIds: jest.fn(),
-      asignarActividad: jest.fn(),
       reemplazarVinculos: jest.fn(),
     };
     const actividades = { findProyectosDisponibles: jest.fn() };
@@ -196,6 +195,70 @@ describe('IncidenciasService', () => {
 
       const res = await service.registrar(dtoBase as any, 5);
       expect(res.repetido).toBe(true);
+    });
+  });
+
+  describe('registrar vinculada a una jornada (GPRCIMPER-142)', () => {
+    const actividad = {
+      id: 3,
+      proyectoId: 10,
+      proyecto: { jefeProyectoId: 7 },
+    };
+
+    function listo() {
+      const ctx = setup();
+      ctx.repo.findByClave.mockResolvedValue(null);
+      ctx.repo.findUsuario.mockResolvedValue(jefe);
+      ctx.repo.findProyecto.mockResolvedValue({
+        id: 10,
+        estado: 'ACTIVO',
+        jefeProyectoId: 7,
+      });
+      ctx.repo.crear.mockResolvedValue(
+        incidenciaMock({ actividadDiariaId: 3 }),
+      );
+      return ctx;
+    }
+
+    it('crea la incidencia ya vinculada al reporte indicado', async () => {
+      const { repo, service } = listo();
+      repo.findActividad.mockResolvedValue(actividad);
+
+      await service.registrar({ ...dtoBase, actividadDiariaId: 3 } as any, 5);
+
+      expect(repo.crear).toHaveBeenCalledWith(
+        expect.objectContaining({ proyectoId: 10, actividadDiariaId: 3 }),
+      );
+    });
+
+    it('sin jornada no consulta actividades ni vincula', async () => {
+      const { repo, service } = listo();
+
+      await service.registrar(dtoBase as any, 5);
+
+      expect(repo.findActividad).not.toHaveBeenCalled();
+      expect(repo.crear).toHaveBeenCalledWith(
+        expect.objectContaining({ actividadDiariaId: undefined }),
+      );
+    });
+
+    it('rechaza una jornada inexistente o de otro proyecto sin crear nada', async () => {
+      const { repo, service } = listo();
+
+      repo.findActividad.mockResolvedValueOnce(null);
+      await expect(
+        service.registrar({ ...dtoBase, actividadDiariaId: 3 } as any, 5),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      repo.findActividad.mockResolvedValueOnce({
+        ...actividad,
+        proyectoId: 99,
+      });
+      await expect(
+        service.registrar({ ...dtoBase, actividadDiariaId: 3 } as any, 5),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(repo.crear).not.toHaveBeenCalled();
     });
   });
 
@@ -363,50 +426,6 @@ describe('IncidenciasService', () => {
 
       await expect(service.vincularAJornada(3, [1], 6)).rejects.toBeInstanceOf(
         ForbiddenException,
-      );
-    });
-  });
-
-  describe('asignarJornada (GPRCIMPER-142)', () => {
-    it('vincula desde la incidencia y permite desvincular con null', async () => {
-      const { repo, service } = setup();
-      repo.findUsuario.mockResolvedValue(jefe);
-      repo.findById.mockResolvedValue(incidenciaMock());
-      repo.findActividad.mockResolvedValue({
-        id: 3,
-        proyectoId: 10,
-        proyecto: { jefeProyectoId: 7 },
-      });
-      repo.asignarActividad.mockResolvedValue(incidenciaMock());
-
-      await service.asignarJornada(1, 3, 5);
-      expect(repo.asignarActividad).toHaveBeenLastCalledWith(1, 3);
-
-      await service.asignarJornada(1, null, 5);
-      expect(repo.asignarActividad).toHaveBeenLastCalledWith(1, null);
-    });
-
-    it('rechaza una jornada de otro proyecto o si la incidencia ya tiene otra', async () => {
-      const { repo, service } = setup();
-      repo.findUsuario.mockResolvedValue(jefe);
-      repo.findById.mockResolvedValue(incidenciaMock());
-      repo.findActividad.mockResolvedValueOnce({
-        id: 3,
-        proyectoId: 99,
-        proyecto: { jefeProyectoId: 7 },
-      });
-      await expect(service.asignarJornada(1, 3, 5)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-
-      repo.findById.mockResolvedValue(incidenciaMock({ actividadDiariaId: 4 }));
-      repo.findActividad.mockResolvedValueOnce({
-        id: 3,
-        proyectoId: 10,
-        proyecto: { jefeProyectoId: 7 },
-      });
-      await expect(service.asignarJornada(1, 3, 5)).rejects.toBeInstanceOf(
-        ConflictException,
       );
     });
   });

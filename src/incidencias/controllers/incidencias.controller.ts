@@ -15,10 +15,7 @@ import {
 import { ActualizarIncidenciaDto } from '../dto/actualizar-incidencia.dto';
 import { CambiarEstadoIncidenciaDto } from '../dto/cambiar-estado-incidencia.dto';
 import { CrearIncidenciaDto } from '../dto/crear-incidencia.dto';
-import {
-  AsignarJornadaDto,
-  VincularIncidenciasDto,
-} from '../dto/vincular-incidencias.dto';
+import { VincularIncidenciasDto } from '../dto/vincular-incidencias.dto';
 import {
   IncidenciasPermissions,
   IncidenciasPermissionsGuard,
@@ -90,21 +87,6 @@ export class IncidenciasController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.cambiarEstado(id, dto, user.sub);
-  }
-
-  /** GPRCIMPER-142: vincular/desvincular una incidencia a una jornada. */
-  @Patch('incidencias/:id/jornada')
-  @IncidenciasPermissions('INCIDENCIA_UPDATE')
-  asignarJornada(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: AsignarJornadaDto,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    return this.service.asignarJornada(
-      id,
-      dto.actividadDiariaId ?? null,
-      user.sub,
-    );
   }
 
   /** GPRCIMPER-142: incidencias vinculadas a un reporte de jornada. */

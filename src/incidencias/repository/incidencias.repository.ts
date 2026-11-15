@@ -14,6 +14,7 @@ export interface DatosCrearIncidencia {
   descripcion: string;
   fecha: Date;
   prioridad: PrioridadIncidencia;
+  actividadDiariaId?: number;
 }
 
 export interface FiltrosIncidencias {
@@ -162,15 +163,6 @@ export class IncidenciasRepository {
     return this.prisma.incidencia.findMany({
       where: { id: { in: ids }, deletedAt: null },
       select: { id: true, proyectoId: true, actividadDiariaId: true },
-    });
-  }
-
-  asignarActividad(incidenciaId: number, actividadDiariaId: number | null) {
-    return this.actualizar(incidenciaId, {
-      actividadDiaria:
-        actividadDiariaId === null
-          ? { disconnect: true }
-          : { connect: { id: actividadDiariaId } },
     });
   }
 

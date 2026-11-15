@@ -116,6 +116,10 @@ export class IncidenciasService {
       proyecto.jefeProyectoId,
       'Solo el jefe de proyecto asignado puede registrar incidencias.',
     );
+    // GPRCIMPER-142: la incidencia puede nacer vinculada a una jornada.
+    if (dto.actividadDiariaId !== undefined) {
+      await this.validarActividad(dto.actividadDiariaId, proyecto.id, usuario);
+    }
 
     try {
       const incidencia = await this.repo.crear({
@@ -126,6 +130,7 @@ export class IncidenciasService {
         descripcion,
         fecha,
         prioridad: dto.prioridad ?? 'MEDIA',
+        actividadDiariaId: dto.actividadDiariaId,
       });
       return { incidencia, repetido: false };
     } catch (error) {
@@ -188,31 +193,6 @@ export class IncidenciasService {
       dto.estado,
       dto.comentario?.trim() || null,
     );
-  }
-
-  /** GPRCIMPER-142: vincula o desvincula una incidencia de una jornada. */
-  async asignarJornada(
-    id: number,
-    actividadDiariaId: number | null,
-    usuarioId: number,
-  ) {
-    const incidencia = await this.findOne(id, usuarioId);
-    if (actividadDiariaId !== null) {
-      const actividad = await this.validarActividad(
-        actividadDiariaId,
-        incidencia.proyectoId,
-        await this.obtenerUsuario(usuarioId),
-      );
-      if (
-        incidencia.actividadDiariaId !== null &&
-        incidencia.actividadDiariaId !== actividad.id
-      ) {
-        throw new ConflictException(
-          'La incidencia ya está vinculada a otro reporte de jornada.',
-        );
-      }
-    }
-    return this.repo.asignarActividad(id, actividadDiariaId);
   }
 
   /** GPRCIMPER-142: deja exactamente estas incidencias vinculadas a la jornada. */

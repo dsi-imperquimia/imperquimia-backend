@@ -4,7 +4,6 @@ import {
   ArrayUnique,
   IsArray,
   IsInt,
-  IsOptional,
   Min,
 } from 'class-validator';
 
@@ -23,13 +22,4 @@ export class VincularIncidenciasDto {
     message: 'Las incidencias deben ser identificadores válidos.',
   })
   incidenciaIds!: number[];
-}
-
-/** Vincula (o desvincula con null) una incidencia a una jornada. */
-export class AsignarJornadaDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({ message: 'Selecciona una jornada válida.' })
-  @Min(1, { message: 'Selecciona una jornada válida.' })
-  actividadDiariaId?: number | null;
 }
