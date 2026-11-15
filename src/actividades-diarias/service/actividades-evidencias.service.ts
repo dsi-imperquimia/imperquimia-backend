@@ -68,6 +68,30 @@ function sanitizarNombreArchivo(nombre?: string): string {
   return (base || 'evidencia.jpg').slice(0, 255);
 }
 
+/** Construye Content-Disposition compatible con ASCII y UTF-8 (RFC 5987). */
+export function construirContentDispositionInline(
+  nombreOriginal?: string,
+): string {
+  const limpio = sanitizarNombreArchivo(nombreOriginal);
+  const sinAcentos = limpio.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const soloAscii = Array.from(sinAcentos, (ch) => {
+    const code = ch.codePointAt(0) ?? 0;
+    return code >= 0x20 &&
+      code <= 0x7e &&
+      ch !== '"' &&
+      ch !== '\\' &&
+      ch !== ';'
+      ? ch
+      : '_';
+  }).join('');
+  const asciiSeguro = soloAscii.trim() || 'evidencia.jpg';
+  const utf8Codificado = encodeURIComponent(limpio).replace(
+    /['()*!]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `inline; filename="${asciiSeguro}"; filename*=UTF-8''${utf8Codificado}`;
+}
+
 /** Gestiona validación, almacenamiento seguro y consulta de evidencias fotográficas. */
 @Injectable()
 export class ActividadesEvidenciasService {
@@ -198,10 +222,12 @@ export class ActividadesEvidenciasService {
       );
     }
 
+    const nombreOriginal = sanitizarNombreArchivo(evidencia.nombreOriginal);
     return {
       stream: createReadStream(rutaAbsoluta),
       mimeType: evidencia.mimeType,
-      nombreOriginal: sanitizarNombreArchivo(evidencia.nombreOriginal),
+      nombreOriginal,
+      disposition: construirContentDispositionInline(nombreOriginal),
     };
   }
 

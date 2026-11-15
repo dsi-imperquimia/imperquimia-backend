@@ -58,7 +58,10 @@ const COLUMNAS: readonly ColumnaTabla[] = [
     header: 'Descripción',
     widthPdf: 220,
     widthExcel: 46,
-    valor: (a) => a.descripcion,
+    valor: (a) =>
+      a.descripcion?.trim()
+        ? a.descripcion
+        : 'Pendiente de registrar (generada por el sistema)',
   },
   {
     header: 'Observaciones',
@@ -102,7 +105,12 @@ function construirNombreArchivo(
   } else if (filtros.fechaFin) {
     sufijo = `hasta_${filtros.fechaFin}`;
   } else {
-    sufijo = new Date().toISOString().slice(0, 10);
+    sufijo = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/El_Salvador',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
   }
   return `actividades-diarias-${sufijo}.${ext}`;
 }

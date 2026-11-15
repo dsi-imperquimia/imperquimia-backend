@@ -1,5 +1,6 @@
 import { PrismaService } from '@/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 
 export interface DatosCrearActividad {
   claveOperacion: string;
@@ -160,6 +161,106 @@ export class ActividadesDiariasRepository {
       },
       include: includeActividad,
       orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  findPendienteDelDia(proyectoId: number, fecha: Date) {
+    return this.prisma.actividadDiaria.findFirst({
+      where: {
+        proyectoId,
+        fecha,
+        deletedAt: null,
+        descripcion: '',
+      },
+      include: includeActividad,
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async asegurarActividadDelDia(datos: {
+    proyectoId: number;
+    usuarioId: number;
+    empleadoId: number | null;
+    fecha: Date;
+    nombre: string;
+  }) {
+    const fechaKey = Math.floor(datos.fecha.getTime() / 86_400_000);
+    return this.prisma.$transaction(async (tx) => {
+      // Serializa la creación automática por (proyecto, día) ante peticiones concurrentes.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${datos.proyectoId}::int, ${fechaKey}::int)`;
+
+      const existente = await tx.actividadDiaria.findFirst({
+        where: {
+          proyectoId: datos.proyectoId,
+          fecha: datos.fecha,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (existente) {
+        return existente;
+      }
+      return tx.actividadDiaria.create({
+        data: {
+          claveOperacion: randomUUID(),
+          proyectoId: datos.proyectoId,
+          usuarioId: datos.usuarioId,
+          empleadoId: datos.empleadoId,
+          fecha: datos.fecha,
+          nombre: datos.nombre,
+          descripcion: '',
+          observaciones: null,
+        },
+        select: { id: true },
+      });
+    });
+  }
+
+  async asegurarActividadesDelDiaAccesibles(datos: {
+    usuarioId: number;
+    empleadoId: number | null;
+    esAdmin: boolean;
+    fecha: Date;
+    nombre: string;
+  }) {
+    if (!datos.esAdmin && !datos.empleadoId) return;
+    const proyectosActivos = await this.prisma.proyecto.findMany({
+      where: {
+        deletedAt: null,
+        estado: 'ACTIVO',
+        ...(datos.esAdmin ? {} : { jefeProyectoId: datos.empleadoId }),
+      },
+      select: {
+        id: true,
+        jefeProyectoId: true,
+      },
+    });
+    for (const proyecto of proyectosActivos) {
+      await this.asegurarActividadDelDia({
+        proyectoId: proyecto.id,
+        usuarioId: datos.usuarioId,
+        empleadoId: proyecto.jefeProyectoId ?? datos.empleadoId,
+        fecha: datos.fecha,
+        nombre: datos.nombre,
+      });
+    }
+  }
+
+  completarPendiente(id: number, datos: DatosCrearActividad) {
+    return this.prisma.actividadDiaria.update({
+      where: { id },
+      data: {
+        claveOperacion: datos.claveOperacion,
+        proyectoId: datos.proyectoId,
+        usuarioId: datos.usuarioId,
+        empleadoId: datos.empleadoId,
+        fecha: datos.fecha,
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        observaciones: datos.observaciones ?? null,
+        createdAt: new Date(),
+      },
+      include: includeActividad,
     });
   }
 

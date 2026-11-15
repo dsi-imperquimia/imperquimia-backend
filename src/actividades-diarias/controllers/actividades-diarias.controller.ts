@@ -194,7 +194,7 @@ export class ActividadesDiariasController {
     );
     return new StreamableFile(archivo.stream, {
       type: archivo.mimeType,
-      disposition: `inline; filename="${archivo.nombreOriginal}"`,
+      disposition: archivo.disposition,
     });
   }
 

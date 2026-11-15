@@ -228,4 +228,40 @@ describe('ActividadesEvidenciasService (GPRIMPER-53)', () => {
     expect(service).toBeInstanceOf(ActividadesEvidenciasService);
     await moduleRef.close();
   });
+
+  it('genera Content-Disposition ASCII seguro con soporte UTF-8 para nombres con acentos o símbolos', async () => {
+    const { repo, service } = setup();
+    let rutaRelativaGuardada = '';
+    repo.crearEvidencias.mockImplementation(
+      (
+        _id: number,
+        _userId: number,
+        archivos: Array<{ rutaArchivo: string }>,
+      ) => {
+        rutaRelativaGuardada = archivos[0].rutaArchivo;
+        return Promise.resolve([{ id: 88 }]);
+      },
+    );
+
+    const nombreUnicode = 'Foto losa — cámara 📷.jpg';
+    await service.adjuntar(12, [fileMock(nombreUnicode, JPEG_VALIDO)], 5);
+
+    repo.findEvidenciaById.mockResolvedValue({
+      id: 88,
+      actividadDiariaId: 12,
+      nombreOriginal: nombreUnicode,
+      rutaArchivo: rutaRelativaGuardada,
+      mimeType: 'image/jpeg',
+      tamanoBytes: JPEG_VALIDO.length,
+    });
+
+    const archivo = await service.obtenerArchivo(12, 88, 5);
+    expect(archivo.nombreOriginal).toBe(nombreUnicode);
+    expect(archivo.disposition).toMatch(/^[\x20-\x7e]+$/);
+    expect(archivo.disposition).toContain(
+      'filename="Foto losa _ camara _.jpg"',
+    );
+    expect(archivo.disposition).toContain("filename*=UTF-8''Foto%20losa%20");
+    archivo.stream.destroy();
+  });
 });

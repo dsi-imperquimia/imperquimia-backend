@@ -55,6 +55,24 @@ export class ActividadesDiariasService {
     );
   }
 
+  private obtenerFechaActualNegocio(): { fecha: Date; iso: string } {
+    const iso = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/El_Salvador',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const fecha = this.parsearFechaCalendar(iso);
+    if (!fecha) {
+      const ahora = new Date();
+      const fallback = new Date(
+        Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()),
+      );
+      return { fecha: fallback, iso: fallback.toISOString().slice(0, 10) };
+    }
+    return { fecha, iso };
+  }
+
   private async obtenerActividadesFiltradas(
     usuarioId: number,
     proyectoId?: number,
@@ -70,7 +88,16 @@ export class ActividadesDiariasService {
       fechaFin,
     );
     const esAdmin = this.esAdministrador(usuario.role?.name);
+    const hoy = this.obtenerFechaActualNegocio();
+    const nombreDefecto = `Bitácora del día ${hoy.iso}`;
     if (proyectoId === undefined) {
+      await this.repo.asegurarActividadesDelDiaAccesibles?.({
+        usuarioId: usuario.id,
+        empleadoId: usuario.empleadoId,
+        esAdmin,
+        fecha: hoy.fecha,
+        nombre: nombreDefecto,
+      });
       const actividades = rango
         ? await this.repo.findAccesibles(usuario.empleadoId, esAdmin, rango)
         : await this.repo.findAccesibles(usuario.empleadoId, esAdmin);
@@ -93,6 +120,15 @@ export class ActividadesDiariasService {
       throw new ForbiddenException(
         'Solo el jefe de proyecto asignado puede consultar sus actividades.',
       );
+    }
+    if (proyecto.estado === 'ACTIVO') {
+      await this.repo.asegurarActividadDelDia?.({
+        proyectoId: proyecto.id,
+        usuarioId: usuario.id,
+        empleadoId: proyecto.jefeProyectoId ?? usuario.empleadoId,
+        fecha: hoy.fecha,
+        nombre: nombreDefecto,
+      });
     }
     const actividades = rango
       ? await this.repo.findPorProyecto(proyecto.id, rango)
@@ -187,18 +223,30 @@ export class ActividadesDiariasService {
     );
 
     const observaciones = dto.observaciones?.trim() || undefined;
+    const datosRegistro = {
+      claveOperacion: dto.claveOperacion,
+      proyectoId: proyectoValido.id,
+      usuarioId: usuario.id,
+      empleadoId: usuario.empleadoId,
+      fecha,
+      nombre,
+      descripcion,
+      observaciones,
+    };
 
     try {
-      const actividad = await this.repo.crear({
-        claveOperacion: dto.claveOperacion,
-        proyectoId: proyectoValido.id,
-        usuarioId: usuario.id,
-        empleadoId: usuario.empleadoId,
+      const pendienteDia = await this.repo.findPendienteDelDia?.(
+        proyectoValido.id,
         fecha,
-        nombre,
-        descripcion,
-        observaciones,
-      });
+      );
+      if (pendienteDia && this.repo.completarPendiente) {
+        const actividad = await this.repo.completarPendiente(
+          pendienteDia.id,
+          datosRegistro,
+        );
+        return { actividad, repetido: false };
+      }
+      const actividad = await this.repo.crear(datosRegistro);
       return { actividad, repetido: false };
     } catch (error) {
       if (
@@ -249,8 +297,9 @@ export class ActividadesDiariasService {
         );
       }
 
+      const yaEstabaGuardada = actividad.descripcion.trim().length > 0;
       const diferenciaMs = Date.now() - new Date(actividad.createdAt).getTime();
-      if (diferenciaMs >= PLAZO_EDICION_MS) {
+      if (yaEstabaGuardada && diferenciaMs >= PLAZO_EDICION_MS) {
         throw new ForbiddenException(
           'El plazo de 48 horas para editar este registro ha vencido. Solo administración puede editarlo.',
         );
@@ -402,11 +451,8 @@ export class ActividadesDiariasService {
       });
     }
 
-    const ahora = new Date();
-    const hoyUtc = new Date(
-      Date.UTC(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()),
-    );
-    if (fecha > hoyUtc) {
+    const { fecha: hoyNegocio } = this.obtenerFechaActualNegocio();
+    if (fecha > hoyNegocio) {
       throw new BadRequestException({
         message: {
           fecha: ['La fecha no puede ser futura.'],

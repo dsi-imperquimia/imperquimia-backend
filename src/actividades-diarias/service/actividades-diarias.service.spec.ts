@@ -642,4 +642,139 @@ describe('ActividadesDiariasService', () => {
       expect(repo.findAccesibles).not.toHaveBeenCalled();
     });
   });
+
+  describe('generación automática de bitácora por el sistema', () => {
+    it('asegura automáticamente el registro diario del sistema al consultar un proyecto activo', async () => {
+      const { repo, service } = setup();
+      const asegurarActividadDelDia = jest.fn().mockResolvedValue({ id: 77 });
+      (repo as any).asegurarActividadDelDia = asegurarActividadDelDia;
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findProyecto.mockResolvedValue({
+        id: 10,
+        nombre: 'Edificio Central',
+        estado: 'ACTIVO',
+        jefeProyectoId: 7,
+      });
+      repo.findPorProyecto.mockResolvedValue([
+        actividadMock({ id: 77, descripcion: '' }),
+      ]);
+
+      const lista = await service.findActividades(5, 10);
+
+      expect(asegurarActividadDelDia).toHaveBeenCalledWith(
+        expect.objectContaining({
+          proyectoId: 10,
+          usuarioId: 5,
+          empleadoId: 7,
+        }),
+      );
+      expect(lista).toHaveLength(1);
+    });
+
+    it('completa el registro pendiente generado por el sistema al guardar con registrar', async () => {
+      const { repo, service } = setup();
+      const pendiente = actividadMock({ id: 77, descripcion: '' });
+      const findPendienteDelDia = jest.fn().mockResolvedValue(pendiente);
+      const completarPendiente = jest.fn().mockResolvedValue(
+        actividadMock({
+          id: 77,
+          descripcion: 'Avance completado en bitácora',
+        }),
+      );
+      (repo as any).findPendienteDelDia = findPendienteDelDia;
+      (repo as any).completarPendiente = completarPendiente;
+
+      repo.findByClave.mockResolvedValue(null);
+      repo.findUsuario.mockResolvedValue({
+        id: 5,
+        empleadoId: 7,
+        role: { name: 'Jefe de proyecto' },
+      });
+      repo.findProyecto.mockResolvedValue({
+        id: 10,
+        nombre: 'Edificio Central',
+        estado: 'ACTIVO',
+        jefeProyectoId: 7,
+      });
+
+      const resultado = await service.registrar(
+        {
+          claveOperacion: uuid,
+          proyectoId: 10,
+          fecha: '2026-11-10',
+          nombre: 'Bitácora del día 2026-11-10',
+          descripcion: 'Avance completado en bitácora',
+        },
+        5,
+      );
+
+      expect(findPendienteDelDia).toHaveBeenCalledWith(
+        10,
+        new Date('2026-11-10T00:00:00.000Z'),
+      );
+      expect(completarPendiente).toHaveBeenCalledWith(
+        77,
+        expect.objectContaining({
+          claveOperacion: uuid,
+          proyectoId: 10,
+          usuarioId: 5,
+          empleadoId: 7,
+          nombre: 'Bitácora del día 2026-11-10',
+          descripcion: 'Avance completado en bitácora',
+        }),
+      );
+      expect(repo.crear).not.toHaveBeenCalled();
+      expect(resultado.repetido).toBe(false);
+    });
+
+    it('usa la misma fecha de El Salvador al generar y validar registros nocturnos sin marcarlos como futuros', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-11-15T05:51:00.000Z'));
+      try {
+        const { repo, service } = setup();
+        const asegurarActividadDelDia = jest.fn().mockResolvedValue({ id: 77 });
+        (repo as any).asegurarActividadDelDia = asegurarActividadDelDia;
+        repo.findUsuario.mockResolvedValue({
+          id: 5,
+          empleadoId: 7,
+          role: { name: 'Jefe de proyecto' },
+        });
+        repo.findProyecto.mockResolvedValue({
+          id: 10,
+          nombre: 'Edificio Central',
+          estado: 'ACTIVO',
+          jefeProyectoId: 7,
+        });
+        repo.findPorProyecto.mockResolvedValue([]);
+
+        await service.findActividades(5, 10);
+
+        expect(asegurarActividadDelDia).toHaveBeenCalledWith(
+          expect.objectContaining({
+            fecha: new Date('2026-11-14T00:00:00.000Z'),
+            nombre: 'Bitácora del día 2026-11-14',
+          }),
+        );
+
+        repo.findByClave.mockResolvedValue(null);
+        repo.crear.mockResolvedValue(actividadMock());
+        await service.registrar(
+          {
+            claveOperacion: uuid,
+            proyectoId: 10,
+            fecha: '2026-11-14',
+            nombre: 'Bitácora del día 2026-11-14',
+            descripcion: 'Registro completado de noche',
+          },
+          5,
+        );
+        expect(repo.crear).toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+  });
 });

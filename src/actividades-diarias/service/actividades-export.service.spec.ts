@@ -92,4 +92,34 @@ describe('ActividadesExportService (GPRIMPER-43)', () => {
     expect(pdf.buffer.subarray(0, 5).toString('ascii')).toBe('%PDF-');
     expect(excel.buffer.subarray(0, 2).toString('ascii')).toBe('PK');
   });
+
+  it('etiqueta los registros pendientes generados por el sistema al exportar a Excel y PDF', async () => {
+    const pendientes = [
+      {
+        id: 77,
+        fecha: new Date('2026-11-14T00:00:00.000Z'),
+        nombre: 'Bitácora del día 2026-11-14',
+        descripcion: '',
+        observaciones: null,
+        proyecto: { id: 10, nombre: 'Torre Central' },
+      },
+    ];
+    const excel = await service.exportar('excel', pendientes, {});
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(excel.buffer as unknown as ArrayBuffer);
+    const sheet = workbook.getWorksheet('Actividades diarias');
+    expect(sheet?.getRow(5).getCell(4).value).toBe(
+      'Pendiente de registrar (generada por el sistema)',
+    );
+  });
+
+  it('usa la fecha de El Salvador en el nombre del archivo cuando no se envían filtros de fecha', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-15T05:51:00.000Z'));
+    try {
+      const pdf = await service.exportar('pdf', actividadesMuestra, {});
+      expect(pdf.filename).toBe('actividades-diarias-2026-11-14.pdf');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
