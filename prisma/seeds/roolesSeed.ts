@@ -197,6 +197,9 @@ export async function seedRoles(prisma: PrismaClient) {
         ...actividadesDiariasPermissions,
         ...incidenciasPermissions,
         ...reportesDefectoPermissions,
+        ...inventarioMaterialesPermissions.filter(
+          (p) => p.name === 'CONSUMO_MATERIAL_READ',
+        ),
         ...reportesConsumoPermissions.filter(
           (p) => p.name === 'CONSUMO_DESVIACION_READ',
         ),
