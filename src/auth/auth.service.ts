@@ -41,6 +41,8 @@ export class AuthService {
         createdAt: true,
         updatedAt: true,
         deletedAt: true,
+        empleadoId: true,
+        empleado: { select: { id: true, nombreCompleto: true } },
         role: {
           select: {
             id: true,

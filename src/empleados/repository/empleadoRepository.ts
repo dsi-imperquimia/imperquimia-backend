@@ -12,6 +12,20 @@ const empleadoInclude = {
   habilidades: { include: { habilidad: true } },
 } satisfies Prisma.EmpleadoInclude;
 
+// Técnicos con asignación vigente, para que "Mis proyectos" muestre con
+// quién más se trabaja en la obra (GPRCIMPER-122).
+const EQUIPO_SELECT = {
+  empleados: {
+    where: { fechaRetiro: null },
+    select: {
+      empleadoId: true,
+      empleado: {
+        select: { nombreCompleto: true, cargo: { select: { nombre: true } } },
+      },
+    },
+  },
+} satisfies Prisma.ProyectoSelect;
+
 // Repositorio para la tabla `empleados`
 // Maneja todas las operaciones CRUD con la BD usando Prisma
 @Injectable()
@@ -30,6 +44,162 @@ export class EmpleadoRepository {
       include: empleadoInclude,
     });
   }
+  // Empleados activos con sus asignaciones de proyecto vigentes (GPRCIMPER-83)
+  findAsignaciones() {
+    return this.prisma.models.empleado.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        nombreCompleto: true,
+        activo: true,
+        cargo: { select: { nombre: true } },
+        proyectos: {
+          where: { fechaRetiro: null, proyecto: { estado: { not: 'FINALIZADO' } } },
+          select: {
+            fechaAsignacion: true,
+            proyecto: { select: { id: true, nombre: true, estado: true } },
+          },
+          orderBy: { fechaAsignacion: 'desc' },
+        },
+        // Proyectos donde el empleado es el jefe (no pasa por la tabla pivote de técnicos).
+        proyectosComoJefe: {
+          where: { deletedAt: null, estado: { not: 'FINALIZADO' } },
+          select: { id: true, nombre: true, estado: true },
+        },
+      },
+      orderBy: { nombreCompleto: 'asc' },
+    });
+  }
+  // Empleado vinculado al usuario autenticado, para las rutas "mis
+  // asignaciones" (GPRCIMPER-122).
+  findEmpleadoIdPorUsuario(userId: number) {
+    return this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { empleadoId: true },
+    });
+  }
+
+  // Proyectos activos asignados al empleado, para que el técnico vea sus
+  // tareas pendientes (GPRCIMPER-122).
+  findMisAsignaciones(empleadoId: number) {
+    return this.prisma.proyectoEmpleado.findMany({
+      where: {
+        empleadoId,
+        fechaRetiro: null,
+        proyecto: { deletedAt: null, estado: { notIn: ['FINALIZADO', 'CANCELADO'] } },
+      },
+      select: {
+        vistaAt: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            ubicacion: true,
+            estado: true,
+            fechaInicio: true,
+            fechaFin: true,
+          },
+        },
+      },
+      orderBy: { fechaAsignacion: 'desc' },
+    });
+  }
+
+  // Proyectos activos donde el empleado es el jefe de proyecto (no pasa por
+  // la tabla pivote de técnicos) — un jefe también debe ver sus proyectos en
+  // "Mis proyectos" (GPRCIMPER-122).
+  findMisProyectosComoJefe(empleadoId: number) {
+    return this.prisma.proyecto.findMany({
+      where: {
+        jefeProyectoId: empleadoId,
+        deletedAt: null,
+        estado: { notIn: ['FINALIZADO', 'CANCELADO'] },
+      },
+      select: {
+        id: true,
+        nombre: true,
+        ubicacion: true,
+        estado: true,
+        fechaInicio: true,
+        fechaFin: true,
+      },
+      orderBy: { fechaInicio: 'desc' },
+    });
+  }
+
+  // Detalle de un proyecto propio como jefe, mismo shape que
+  // findMiAsignacionDetalle para que el service pueda combinarlos
+  // (GPRCIMPER-122).
+  findMiProyectoComoJefe(empleadoId: number, proyectoId: number) {
+    return this.prisma.proyecto.findFirst({
+      where: { id: proyectoId, jefeProyectoId: empleadoId, deletedAt: null },
+      select: {
+        id: true,
+        nombre: true,
+        ubicacion: true,
+        descripcion: true,
+        estado: true,
+        cliente: true,
+        tipoObra: true,
+        fechaInicio: true,
+        fechaFin: true,
+        jefeProyecto: {
+          select: {
+            nombreCompleto: true,
+            user: { select: { email: true } },
+          },
+        },
+        ...EQUIPO_SELECT,
+      },
+    });
+  }
+
+  // Detalle de una asignación propia, con datos de contacto del jefe de
+  // proyecto (GPRCIMPER-122).
+  findMiAsignacionDetalle(empleadoId: number, proyectoId: number) {
+    return this.prisma.proyectoEmpleado.findFirst({
+      where: {
+        empleadoId,
+        proyectoId,
+        fechaRetiro: null,
+        proyecto: { deletedAt: null },
+      },
+      select: {
+        vistaAt: true,
+        proyecto: {
+          select: {
+            id: true,
+            nombre: true,
+            ubicacion: true,
+            descripcion: true,
+            estado: true,
+            cliente: true,
+            tipoObra: true,
+            fechaInicio: true,
+            fechaFin: true,
+            jefeProyectoId: true,
+            jefeProyecto: {
+              select: {
+                nombreCompleto: true,
+                user: { select: { email: true } },
+              },
+            },
+            ...EQUIPO_SELECT,
+          },
+        },
+      },
+    });
+  }
+
+  // Marca la asignación como vista la primera vez que el técnico abre el
+  // detalle; no pisa la fecha si ya se había visualizado (GPRCIMPER-122).
+  marcarAsignacionVista(empleadoId: number, proyectoId: number) {
+    return this.prisma.proyectoEmpleado.updateMany({
+      where: { empleadoId, proyectoId, vistaAt: null },
+      data: { vistaAt: new Date() },
+    });
+  }
+
   // Consulta sin el filtro de borrado lógico: un empleado eliminado todavía
   // ocupa su DUI y NIT en los índices únicos de la base de datos.
   findDocumentConflicts(dui: string, nit: string) {

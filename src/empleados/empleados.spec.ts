@@ -1,9 +1,14 @@
 import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  ForbiddenException,
+  INestApplication,
+  NotFoundException,
+  ValidationPipe,
+} from '@nestjs/common';
 import request from 'supertest';
 import { validationExceptionFactory } from '@/common/pipes/validation-exception.factory';
 import { EmpleadoController } from './controllers/empleado.controller';
-import { EmpleadoService } from './service/empleado.service';
+import { EmpleadoService, calcularPrioridad } from './service/empleado.service';
 import { EmpleadoRepository } from './repository/empleadoRepository';
 import { Prisma } from '@gen/prisma/client';
 
@@ -303,4 +308,197 @@ describe('Empleados: contrato HTTP de habilidades', () => {
       expect(repo.update).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('calcularPrioridad (GPRCIMPER-122, AC1)', () => {
+  it('es alta si el proyecto ya empezó o empieza en los próximos 2 días', () => {
+    expect(calcularPrioridad(new Date('2026-11-10'), '2026-11-12')).toBe('ALTA');
+    expect(calcularPrioridad(new Date('2026-11-12'), '2026-11-12')).toBe('ALTA');
+    expect(calcularPrioridad(new Date('2026-11-14'), '2026-11-12')).toBe('ALTA');
+  });
+
+  it('es media entre 3 y 7 días antes de empezar', () => {
+    expect(calcularPrioridad(new Date('2026-11-15'), '2026-11-12')).toBe('MEDIA');
+    expect(calcularPrioridad(new Date('2026-11-19'), '2026-11-12')).toBe('MEDIA');
+  });
+
+  it('es baja a más de 7 días de empezar, o sin fecha de inicio', () => {
+    expect(calcularPrioridad(new Date('2026-11-20'), '2026-11-12')).toBe('BAJA');
+    expect(calcularPrioridad(null, '2026-11-12')).toBe('BAJA');
+  });
+});
+
+describe('EmpleadoService: mis asignaciones (GPRCIMPER-122)', () => {
+  function setup() {
+    const repo = {
+      findEmpleadoIdPorUsuario: jest.fn(),
+      findMisAsignaciones: jest.fn().mockResolvedValue([]),
+      findMisProyectosComoJefe: jest.fn().mockResolvedValue([]),
+      findMiAsignacionDetalle: jest.fn(),
+      findMiProyectoComoJefe: jest.fn().mockResolvedValue(null),
+      marcarAsignacionVista: jest.fn(),
+    };
+    return { repo, service: new EmpleadoService(repo as unknown as EmpleadoRepository) };
+  }
+
+  it('rechaza si el usuario no está vinculado a un empleado', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: null });
+    await expect(service.misAsignaciones(1)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.miAsignacionDetalle(1, 9)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.marcarAsignacionVista(1, 9)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('lista los proyectos asignados con el contador de pendientes', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMisAsignaciones.mockResolvedValue([
+      { vistaAt: null, proyecto: { id: 1, nombre: 'Obra A', estado: 'ACTIVO' } },
+      { vistaAt: new Date('2026-11-10'), proyecto: { id: 2, nombre: 'Obra B', estado: 'ACTIVO' } },
+    ]);
+    const resultado = await service.misAsignaciones(1);
+    expect(repo.findMisAsignaciones).toHaveBeenCalledWith(5);
+    expect(resultado.pendientes).toBe(1);
+    expect(resultado.items).toEqual([
+      expect.objectContaining({ id: 1, vista: false }),
+      expect.objectContaining({ id: 2, vista: true }),
+    ]);
+  });
+
+  it('da el detalle con el contacto del jefe de proyecto', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: {
+        id: 9,
+        nombre: 'Obra A',
+        ubicacion: 'San Salvador',
+        jefeProyectoId: 1,
+        jefeProyecto: { nombreCompleto: 'Ana Jefa', user: { email: 'ana@test.com' } },
+        empleados: [],
+      },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle).toMatchObject({
+      id: 9,
+      vista: false,
+      esJefe: false,
+      jefeProyecto: { nombreCompleto: 'Ana Jefa', email: 'ana@test.com' },
+    });
+    expect(detalle).not.toHaveProperty('jefeProyectoId');
+  });
+
+  it('marca esJefe en el detalle cuando el técnico también es el jefe del proyecto', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: {
+        id: 9,
+        nombre: 'Obra A',
+        jefeProyectoId: 5,
+        jefeProyecto: { nombreCompleto: 'Yo mismo', user: { email: null } },
+        empleados: [
+          { empleadoId: 5, empleado: { nombreCompleto: 'Yo mismo', cargo: null } },
+          {
+            empleadoId: 7,
+            empleado: { nombreCompleto: 'Otro Técnico', cargo: { nombre: 'Técnico de Campo' } },
+          },
+        ],
+      },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle.esJefe).toBe(true);
+    expect(detalle.equipo).toEqual([
+      { nombreCompleto: 'Otro Técnico', cargo: 'Técnico de Campo' },
+    ]);
+  });
+
+  it('da null como jefe de proyecto si no hay uno asignado', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: { id: 9, nombre: 'Obra A', jefeProyecto: null, empleados: [] },
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle.jefeProyecto).toBeNull();
+  });
+
+  it('responde 404 si la asignación no existe o no le pertenece', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue(null);
+    await expect(service.miAsignacionDetalle(1, 9)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.marcarAsignacionVista(1, 9)).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.marcarAsignacionVista).not.toHaveBeenCalled();
+  });
+
+  it('marca la asignación como vista', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue({
+      vistaAt: null,
+      proyecto: { id: 9, nombre: 'Obra A', jefeProyecto: null },
+    });
+    await expect(service.marcarAsignacionVista(1, 9)).resolves.toEqual({ vista: true });
+    expect(repo.marcarAsignacionVista).toHaveBeenCalledWith(5, 9);
+  });
+
+  it('incluye los proyectos donde el empleado es jefe, marcando esJefe y sin pisar la asignación de técnico', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMisAsignaciones.mockResolvedValue([
+      { vistaAt: null, proyecto: { id: 1, nombre: 'Obra A (técnico y jefe)', estado: 'ACTIVO' } },
+    ]);
+    repo.findMisProyectosComoJefe.mockResolvedValue([
+      { id: 1, nombre: 'Obra A (técnico y jefe)', estado: 'ACTIVO' },
+      { id: 2, nombre: 'Obra B (solo jefe)', estado: 'ACTIVO' },
+    ]);
+    const resultado = await service.misAsignaciones(1);
+    expect(resultado.items).toEqual([
+      expect.objectContaining({ id: 1, esJefe: true, vista: false }),
+      expect.objectContaining({ id: 2, esJefe: true, vista: true }),
+    ]);
+    // Obra B no tiene fila en proyecto_empleados: no cuenta como pendiente.
+    expect(resultado.pendientes).toBe(1);
+  });
+
+  it('da el detalle de un proyecto donde el empleado solo es jefe (sin fila de técnico)', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue(null);
+    repo.findMiProyectoComoJefe.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra A',
+      jefeProyecto: { nombreCompleto: 'Carlos Jefe', user: { email: 'carlos@test.com' } },
+      empleados: [
+        { empleadoId: 3, empleado: { nombreCompleto: 'José Técnico', cargo: null } },
+      ],
+    });
+    const detalle = await service.miAsignacionDetalle(1, 9);
+    expect(detalle).toMatchObject({
+      id: 9,
+      vista: true,
+      vistaAt: null,
+      esJefe: true,
+      jefeProyecto: { nombreCompleto: 'Carlos Jefe', email: 'carlos@test.com' },
+      equipo: [{ nombreCompleto: 'José Técnico', cargo: null }],
+    });
+  });
+
+  it('no falla al marcar como vista un proyecto donde el empleado solo es jefe', async () => {
+    const { repo, service } = setup();
+    repo.findEmpleadoIdPorUsuario.mockResolvedValue({ empleadoId: 5 });
+    repo.findMiAsignacionDetalle.mockResolvedValue(null);
+    repo.findMiProyectoComoJefe.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra A',
+      jefeProyecto: null,
+      empleados: [],
+    });
+    await expect(service.marcarAsignacionVista(1, 9)).resolves.toEqual({ vista: true });
+    expect(repo.marcarAsignacionVista).not.toHaveBeenCalled();
+  });
 });

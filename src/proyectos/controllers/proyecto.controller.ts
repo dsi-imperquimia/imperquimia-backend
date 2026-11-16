@@ -11,6 +11,8 @@ import {
 import { ProyectoService } from '../service/proyecto.service';
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
+import { CancelarProyectoDto } from '../dto/cancelar-proyecto.dto';
+import { ReasignarEmpleadoDto } from '../dto/reasignar-empleado.dto';
 
 @Controller('proyectos')
 export class ProyectoController {
@@ -38,6 +40,34 @@ export class ProyectoController {
     return this.proyectoService.retirarEmpleado(id, empleadoId);
   }
 
+  // PATCH /proyectos/:id/empleados/:empleadoId/reasignar -> mueve al empleado
+  // del proyecto :id a dto.destinoId y notifica al jefe del origen (GPRCIMPER-84).
+  @Patch(':id/empleados/:empleadoId/reasignar')
+  reasignarEmpleado(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('empleadoId', ParseIntPipe) empleadoId: number,
+    @Body() dto: ReasignarEmpleadoDto,
+    @Req() req: { user: { sub: number } },
+  ) {
+    return this.proyectoService.reasignarEmpleado(
+      id,
+      dto.destinoId,
+      empleadoId,
+      req.user.sub,
+    );
+  }
+
+  // POST /proyectos/:id/jefe/:empleadoId -> asignar jefe de proyecto (GPRCIMPER-23)
+  @Post(':id/jefe/:empleadoId')
+  asignarJefe(@Param('id', ParseIntPipe) id: number, @Param('empleadoId', ParseIntPipe) empleadoId: number) {
+    return this.proyectoService.asignarJefe(id, empleadoId);
+  }
+
+  @Patch(':id/jefe/retirar')
+  retirarJefe(@Param('id', ParseIntPipe) id: number) {
+    return this.proyectoService.retirarJefe(id);
+  }
+
   @Get()
   findAll() {
     return this.proyectoService.findAll();
@@ -50,7 +80,10 @@ export class ProyectoController {
   }
 
   @Patch(':id/cancelar')
-  cancelar(@Param('id', ParseIntPipe) id: number) {
-    return this.proyectoService.cancelar(id);
+  cancelar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CancelarProyectoDto,
+  ) {
+    return this.proyectoService.cancelar(id, dto.motivo);
   }
 }

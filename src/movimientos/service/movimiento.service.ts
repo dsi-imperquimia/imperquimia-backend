@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,10 +17,18 @@ export class MovimientoService {
   ) {}
 
   async create(dto: CreateMovimientoDto, usuarioId: number) {
-    const herramienta = await this.herramientaRepo.findUnique(dto.herramientaId);
+    const herramienta = await this.herramientaRepo.findUnique(
+      dto.herramientaId,
+    );
     if (!herramienta) {
       throw new NotFoundException(
         `Herramienta #${dto.herramientaId} no encontrada`,
+      );
+    }
+
+    if (dto.origen !== herramienta.ubicacionActual) {
+      throw new ConflictException(
+        `La herramienta ya no se encuentra en "${dto.origen}". Su ubicación actual es "${herramienta.ubicacionActual}".`,
       );
     }
 
@@ -30,22 +39,40 @@ export class MovimientoService {
         'proyectoDestinoId es obligatorio cuando el destino es PROYECTO',
       );
     }
-    if (dto.destino === AreaMovimiento.PROYECTO &&
-        !(await this.repo.findProyectoAsignable(dto.proyectoDestinoId!))) {
-      throw new BadRequestException('El proyecto de destino no existe o está cancelado.');
+    if (
+      dto.destino === AreaMovimiento.PROYECTO &&
+      !(await this.repo.findProyectoAsignable(dto.proyectoDestinoId!))
+    ) {
+      throw new BadRequestException(
+        'El proyecto de destino no existe o no está activo.',
+      );
     }
 
-    const estadoNuevo = this.deducirEstado(dto.destino, dto.conDano);
+    const estadoNuevo = this.deducirEstado(
+      herramienta.estado,
+      dto.destino,
+      dto.conDano,
+    );
 
-    return this.repo.createWithTransaction({
-      herramientaId: dto.herramientaId,
-      usuarioId,
-      origen: dto.origen,
-      destino: dto.destino,
-      proyectoDestinoId: dto.proyectoDestinoId ?? null,
-      estadoHerramienta: estadoNuevo,
-      observaciones: dto.observaciones,
-    });
+    try {
+      return await this.repo.createWithTransaction({
+        herramientaId: dto.herramientaId,
+        usuarioId,
+        origen: herramienta.ubicacionActual,
+        destino: dto.destino,
+        proyectoDestinoId: dto.proyectoDestinoId ?? null,
+        estadoActual: herramienta.estado,
+        estadoHerramienta: estadoNuevo,
+        observaciones: dto.observaciones,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'UBICACION_CAMBIO') {
+        throw new ConflictException(
+          'La ubicación o el estado de la herramienta cambió. Actualiza la página e intenta nuevamente.',
+        );
+      }
+      throw error;
+    }
   }
 
   async findAll(herramientaId?: number) {
@@ -66,10 +93,19 @@ export class MovimientoService {
     conDano?: boolean,
   ) {
     const transicionesValidas: Record<EstadoHerramienta, AreaMovimiento[]> = {
-      DISPONIBLE: [AreaMovimiento.PROYECTO, AreaMovimiento.TALLER, AreaMovimiento.DESECHO],
+      DISPONIBLE: [
+        AreaMovimiento.PROYECTO,
+        AreaMovimiento.TALLER,
+        AreaMovimiento.DESECHO,
+      ],
       EN_PROYECTO: [AreaMovimiento.BODEGA, AreaMovimiento.TALLER],
       MANTENIMIENTO: [AreaMovimiento.BODEGA, AreaMovimiento.DESECHO],
       DANADA: [AreaMovimiento.TALLER, AreaMovimiento.DESECHO],
+      REQUIERE_REVISION: [
+        AreaMovimiento.BODEGA,
+        AreaMovimiento.TALLER,
+        AreaMovimiento.DESECHO,
+      ],
       DESECHO: [],
     };
 
@@ -86,7 +122,17 @@ export class MovimientoService {
     }
   }
 
-  private deducirEstado(destino: AreaMovimiento, conDano?: boolean): EstadoHerramienta {
+  private deducirEstado(
+    estadoActual: EstadoHerramienta,
+    destino: AreaMovimiento,
+    conDano?: boolean,
+  ): EstadoHerramienta {
+    if (
+      estadoActual === EstadoHerramienta.REQUIERE_REVISION &&
+      destino !== AreaMovimiento.DESECHO
+    ) {
+      return EstadoHerramienta.REQUIERE_REVISION;
+    }
     if (destino === AreaMovimiento.BODEGA && conDano) {
       return EstadoHerramienta.DANADA;
     }

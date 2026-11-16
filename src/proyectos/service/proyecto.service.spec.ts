@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@gen/prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -6,6 +6,7 @@ import { validationExceptionFactory } from '@/common/pipes/validation-exception.
 import { CreateProyectoDto } from '../dto/create-proyecto.dto';
 import { ProyectoRepository } from '../repository/proyectoRepository';
 import { ProyectoService } from './proyecto.service';
+import { MailService } from '@/common/mail/mail.service';
 
 const base = {
   nombre: 'Obra',
@@ -25,8 +26,21 @@ function setup() {
     update: jest.fn().mockImplementation(async (_id: number, data: unknown) => data),
     findUnique: jest.fn(),
     cancelar: jest.fn().mockResolvedValue({ id: 9, estado: 'CANCELADO', deletedAt: null }),
+    findCorreosEmpleadosActivos: jest.fn().mockResolvedValue([]),
+    asignacionVigente: jest.fn(),
+    reasignarEmpleado: jest.fn().mockResolvedValue(undefined),
+    findJefeProyecto: jest.fn().mockResolvedValue(null),
+    crearNotificacionReasignacion: jest.fn().mockResolvedValue(undefined),
   };
-  return { repo, service: new ProyectoService(repo as unknown as ProyectoRepository) };
+  const mail = { enviar: jest.fn().mockResolvedValue(undefined) };
+  return {
+    repo,
+    mail,
+    service: new ProyectoService(
+      repo as unknown as ProyectoRepository,
+      mail as unknown as MailService,
+    ),
+  };
 }
 
 describe('ProyectoService: presupuesto de materiales', () => {
@@ -60,12 +74,12 @@ describe('ProyectoService: presupuesto de materiales', () => {
     const { repo, service } = setup();
     await service.create({
       ...base,
-      detalles: [{ materialId: 1, cantidad: 2 }, { materialId: 2, cantidad: 1.5 }],
+      detalles: [{ materialId: 1, cantidad: 2 }, { materialId: 2, cantidad: 1 }],
     }, 7);
     const data = repo.create.mock.calls[0][0] as Prisma.ProyectoUncheckedCreateInput;
-    expect(data.subTotal?.toString()).toBe('27.5');
-    expect(data.totalIva?.toString()).toBe('3.58');
-    expect(data.total?.toString()).toBe('31.08');
+    expect(data.subTotal?.toString()).toBe('25');
+    expect(data.totalIva?.toString()).toBe('3.25');
+    expect(data.total?.toString()).toBe('28.25');
     expect(data.detalles?.create).toHaveLength(2);
   });
 
@@ -78,6 +92,10 @@ describe('ProyectoService: presupuesto de materiales', () => {
     await expect(service.create({
       ...base,
       detalles: [{ materialId: 1, cantidad: 0 }],
+    }, 7)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.create({
+      ...base,
+      detalles: [{ materialId: 1, cantidad: 1.5 }],
     }, 7)).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -111,6 +129,7 @@ describe('ProyectoService: presupuesto de materiales', () => {
     repo.findUnique.mockResolvedValue({
       ...base,
       id: 9,
+      estado: 'ACTIVO',
       fechaInicio: new Date('2026-09-14'),
       fechaFin: new Date('2026-09-30'),
       detalles: [{
@@ -128,33 +147,183 @@ describe('ProyectoService: presupuesto de materiales', () => {
     expect(vacio.total?.toString()).toBe('0');
     expect(vacio.detalles?.deleteMany).toEqual({});
   });
+
+  it('impide quitar el último medio de contacto al editar', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      ...base,
+      id: 9,
+      estado: 'ACTIVO',
+      phone: null,
+      email: 'nuevo@example.com',
+      fechaInicio: new Date('2026-09-14'),
+      fechaFin: new Date('2026-09-30'),
+      detalles: [],
+    });
+    await expect(service.update(9, { email: '' })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('ProyectoService: cancelación', () => {
-  it('cambia el estado y conserva el proyecto', async () => {
+  it('cambia el estado, guarda el motivo y conserva el proyecto', async () => {
     const { repo, service } = setup();
     repo.findUnique.mockResolvedValue({
       id: 9,
+      nombre: 'Obra',
       estado: 'ACTIVO',
       empleados: [],
       herramientas: [],
     });
-    await expect(service.cancelar(9)).resolves.toMatchObject({
+    await expect(service.cancelar(9, 'Cliente desistió')).resolves.toMatchObject({
       estado: 'CANCELADO',
       deletedAt: null,
     });
-    expect(repo.cancelar).toHaveBeenCalledWith(9);
+    expect(repo.cancelar).toHaveBeenCalledWith(9, 'Cliente desistió');
   });
 
-  it('impide cancelar con asignaciones activas', async () => {
+  it('no exige retirar empleados o herramientas: en su lugar notifica a los asignados', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra',
+      estado: 'ACTIVO',
+      empleados: [{ fechaRetiro: null }],
+      herramientas: [{ id: 1 }],
+    });
+    repo.findCorreosEmpleadosActivos.mockResolvedValue([
+      { empleado: { nombreCompleto: 'Ana', user: { email: 'ana@test.com' } } },
+      { empleado: { nombreCompleto: 'Sin cuenta', user: null } },
+    ]);
+    await expect(
+      service.cancelar(9, 'Cliente desistió'),
+    ).resolves.toMatchObject({ estado: 'CANCELADO' });
+    expect(repo.cancelar).toHaveBeenCalledWith(9, 'Cliente desistió');
+    expect(mail.enviar).toHaveBeenCalledTimes(1);
+    expect(mail.enviar).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'ana@test.com' }),
+    );
+  });
+
+  it('impide cancelar un proyecto ya cancelado', async () => {
     const { repo, service } = setup();
     repo.findUnique.mockResolvedValue({
       id: 9,
-      estado: 'ACTIVO',
-      empleados: [{ fechaRetiro: null }],
+      nombre: 'Obra',
+      estado: 'CANCELADO',
+      empleados: [],
       herramientas: [],
     });
-    await expect(service.cancelar(9)).rejects.toMatchObject({ status: 409 });
+    await expect(service.cancelar(9, 'Motivo')).rejects.toMatchObject({
+      status: 409,
+    });
     expect(repo.cancelar).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProyectoService: cancelar desde la edición general', () => {
+  it('exige motivo cuando el estado destino es CANCELADO', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra',
+      estado: 'ACTIVO',
+      empleados: [],
+      herramientas: [],
+      detalles: [],
+    });
+    await expect(
+      service.update(9, { estado: 'CANCELADO' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('cancela, guarda el motivo y notifica igual que el flujo dedicado', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockResolvedValue({
+      id: 9,
+      nombre: 'Obra',
+      cliente: 'Cliente',
+      phone: '70000000',
+      fechaInicio: new Date('2026-09-14'),
+      fechaFin: new Date('2026-09-30'),
+      estado: 'ACTIVO',
+      empleados: [{ fechaRetiro: null }],
+      herramientas: [{ id: 1 }],
+      detalles: [],
+    });
+    repo.findCorreosEmpleadosActivos.mockResolvedValue([
+      { empleado: { nombreCompleto: 'Ana', user: { email: 'ana@test.com' } } },
+    ]);
+    await service.update(9, { estado: 'CANCELADO', motivo: 'Fin de obra' });
+    const actualizado = repo.update.mock.calls[0][1] as Record<string, unknown>;
+    expect(actualizado.estado).toBe('CANCELADO');
+    expect(actualizado.motivoCancelacion).toBe('Fin de obra');
+    expect(mail.enviar).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ProyectoService: reasignar empleado entre proyectos', () => {
+  function proyecto(id: number, overrides: Record<string, unknown> = {}) {
+    return { id, nombre: `Obra ${id}`, estado: 'ACTIVO', empleados: [], herramientas: [], detalles: [], ...overrides };
+  }
+
+  it('exige que origen y destino sean proyectos distintos', async () => {
+    const { repo, service } = setup();
+    await expect(service.reasignarEmpleado(9, 9, 1, 7)).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('impide reasignar a un proyecto cancelado', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockImplementation((id: number) =>
+      Promise.resolve(id === 10 ? proyecto(10, { estado: 'CANCELADO' }) : proyecto(9)),
+    );
+    await expect(service.reasignarEmpleado(9, 10, 1, 7)).rejects.toBeInstanceOf(ConflictException);
+    expect(repo.reasignarEmpleado).not.toHaveBeenCalled();
+  });
+
+  it('exige que el empleado tenga una asignación vigente en el origen', async () => {
+    const { repo, service } = setup();
+    repo.findUnique.mockImplementation((id: number) => Promise.resolve(proyecto(id)));
+    repo.asignacionVigente.mockResolvedValue(null);
+    await expect(service.reasignarEmpleado(9, 10, 1, 7)).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.reasignarEmpleado).not.toHaveBeenCalled();
+  });
+
+  it('reasigna, notifica por correo y por sistema al jefe del proyecto de origen', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockImplementation((id: number) => Promise.resolve(proyecto(id)));
+    repo.asignacionVigente.mockResolvedValue({ empleado: { nombreCompleto: 'Ana' } });
+    repo.findJefeProyecto.mockResolvedValue({ jefeProyecto: { user: { id: 3, email: 'jefe@test.com' } } });
+
+    const resultado = await service.reasignarEmpleado(9, 10, 1, 7);
+
+    expect(repo.reasignarEmpleado).toHaveBeenCalledWith(9, 10, 1);
+    expect(mail.enviar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jefe@test.com',
+        html: expect.stringContaining('Ana'),
+      }),
+    );
+    expect(repo.crearNotificacionReasignacion).toHaveBeenCalledWith(
+      expect.objectContaining({ proyectoId: 9, destinatarioId: 3, creadaPorId: 7 }),
+    );
+    expect(resultado).toEqual({ message: 'Empleado reasignado correctamente.' });
+  });
+
+  it('no falla si el proyecto de origen no tiene jefe asignado', async () => {
+    const { repo, mail, service } = setup();
+    repo.findUnique.mockImplementation((id: number) => Promise.resolve(proyecto(id)));
+    repo.asignacionVigente.mockResolvedValue({ empleado: { nombreCompleto: 'Ana' } });
+    repo.findJefeProyecto.mockResolvedValue(null);
+
+    await expect(service.reasignarEmpleado(9, 10, 1, 7)).resolves.toEqual({
+      message: 'Empleado reasignado correctamente.',
+    });
+    expect(mail.enviar).not.toHaveBeenCalled();
+    expect(repo.crearNotificacionReasignacion).not.toHaveBeenCalled();
   });
 });

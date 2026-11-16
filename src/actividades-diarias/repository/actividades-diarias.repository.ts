@@ -1,0 +1,346 @@
+import { PrismaService } from '@/prisma/prisma.service';
+import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+export interface DatosCrearActividad {
+  claveOperacion: string;
+  proyectoId: number;
+  usuarioId: number;
+  empleadoId: number | null;
+  fecha: Date;
+  nombre: string;
+  descripcion: string;
+  observaciones?: string;
+}
+
+export interface DatosActualizarActividad {
+  proyectoId?: number;
+  fecha?: Date;
+  nombre: string;
+  descripcion: string;
+  observaciones: string | null;
+}
+
+export const includeEvidenciaPublica = {
+  id: true,
+  actividadDiariaId: true,
+  nombreOriginal: true,
+  mimeType: true,
+  tamanoBytes: true,
+  createdAt: true,
+} as const;
+
+export interface DatosCrearEvidencia {
+  nombreOriginal: string;
+  rutaArchivo: string;
+  mimeType: string;
+  tamanoBytes: number;
+}
+
+const includeActividad = {
+  proyecto: {
+    select: { id: true, nombre: true, estado: true, jefeProyectoId: true },
+  },
+  usuario: { select: { id: true, name: true, lastName: true } },
+  empleado: { select: { id: true, nombreCompleto: true } },
+  evidencias: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'asc' as const },
+    select: includeEvidenciaPublica,
+  },
+  // Incidencias vinculadas a la jornada (GPRCIMPER-142)
+  incidencias: {
+    where: { deletedAt: null },
+    orderBy: { id: 'asc' as const },
+    select: { id: true, titulo: true, prioridad: true, estado: true },
+  },
+};
+
+@Injectable()
+export class ActividadesDiariasRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  findById(id: number) {
+    return this.prisma.actividadDiaria.findFirst({
+      where: { id, deletedAt: null },
+      include: includeActividad,
+    });
+  }
+
+  findByClave(claveOperacion: string) {
+    return this.prisma.actividadDiaria.findUnique({
+      where: { claveOperacion },
+      include: includeActividad,
+    });
+  }
+
+  findUsuario(usuarioId: number) {
+    return this.prisma.user.findFirst({
+      where: { id: usuarioId, deletedAt: null },
+      select: {
+        id: true,
+        empleadoId: true,
+        role: { select: { name: true } },
+      },
+    });
+  }
+
+  findProyecto(proyectoId: number) {
+    return this.prisma.proyecto.findFirst({
+      where: { id: proyectoId, deletedAt: null },
+      select: {
+        id: true,
+        nombre: true,
+        estado: true,
+        jefeProyectoId: true,
+      },
+    });
+  }
+
+  findProyectosDisponibles(empleadoId: number | null, esAdmin: boolean) {
+    if (!esAdmin && !empleadoId) return Promise.resolve([]);
+    return this.prisma.proyecto.findMany({
+      where: {
+        deletedAt: null,
+        estado: 'ACTIVO',
+        ...(esAdmin ? {} : { jefeProyectoId: empleadoId }),
+      },
+      select: {
+        id: true,
+        nombre: true,
+        cliente: true,
+        ubicacion: true,
+        estado: true,
+        fechaInicio: true,
+        fechaFin: true,
+      },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  private buildWhereFecha(fechaInicio?: Date, fechaFin?: Date) {
+    if (!fechaInicio && !fechaFin) return {};
+    return {
+      fecha: {
+        ...(fechaInicio ? { gte: fechaInicio } : {}),
+        ...(fechaFin ? { lte: fechaFin } : {}),
+      },
+    };
+  }
+
+  findPorProyecto(
+    proyectoId: number,
+    rango?: { fechaInicio?: Date; fechaFin?: Date },
+  ) {
+    return this.prisma.actividadDiaria.findMany({
+      where: {
+        proyectoId,
+        deletedAt: null,
+        ...this.buildWhereFecha(rango?.fechaInicio, rango?.fechaFin),
+      },
+      include: includeActividad,
+      orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  findAccesibles(
+    empleadoId: number | null,
+    esAdmin: boolean,
+    rango?: { fechaInicio?: Date; fechaFin?: Date },
+  ) {
+    if (!esAdmin && !empleadoId) return Promise.resolve([]);
+    return this.prisma.actividadDiaria.findMany({
+      where: {
+        deletedAt: null,
+        ...this.buildWhereFecha(rango?.fechaInicio, rango?.fechaFin),
+        proyecto: {
+          deletedAt: null,
+          estado: 'ACTIVO',
+          ...(esAdmin ? {} : { jefeProyectoId: empleadoId }),
+        },
+      },
+      include: includeActividad,
+      orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  findPendienteDelDia(proyectoId: number, fecha: Date) {
+    return this.prisma.actividadDiaria.findFirst({
+      where: {
+        proyectoId,
+        fecha,
+        deletedAt: null,
+        descripcion: '',
+      },
+      include: includeActividad,
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async asegurarActividadDelDia(datos: {
+    proyectoId: number;
+    usuarioId: number;
+    empleadoId: number | null;
+    fecha: Date;
+    nombre: string;
+  }) {
+    const fechaKey = Math.floor(datos.fecha.getTime() / 86_400_000);
+    return this.prisma.$transaction(async (tx) => {
+      // Serializa la creación automática por (proyecto, día) ante peticiones concurrentes.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${datos.proyectoId}::int, ${fechaKey}::int)`;
+
+      const existente = await tx.actividadDiaria.findFirst({
+        where: {
+          proyectoId: datos.proyectoId,
+          fecha: datos.fecha,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (existente) {
+        return existente;
+      }
+      return tx.actividadDiaria.create({
+        data: {
+          claveOperacion: randomUUID(),
+          proyectoId: datos.proyectoId,
+          usuarioId: datos.usuarioId,
+          empleadoId: datos.empleadoId,
+          fecha: datos.fecha,
+          nombre: datos.nombre,
+          descripcion: '',
+          observaciones: null,
+        },
+        select: { id: true },
+      });
+    });
+  }
+
+  async asegurarActividadesDelDiaAccesibles(datos: {
+    usuarioId: number;
+    empleadoId: number | null;
+    esAdmin: boolean;
+    fecha: Date;
+    nombre: string;
+  }) {
+    if (!datos.esAdmin && !datos.empleadoId) return;
+    const proyectosActivos = await this.prisma.proyecto.findMany({
+      where: {
+        deletedAt: null,
+        estado: 'ACTIVO',
+        ...(datos.esAdmin ? {} : { jefeProyectoId: datos.empleadoId }),
+      },
+      select: {
+        id: true,
+        jefeProyectoId: true,
+      },
+    });
+    for (const proyecto of proyectosActivos) {
+      await this.asegurarActividadDelDia({
+        proyectoId: proyecto.id,
+        usuarioId: datos.usuarioId,
+        empleadoId: proyecto.jefeProyectoId ?? datos.empleadoId,
+        fecha: datos.fecha,
+        nombre: datos.nombre,
+      });
+    }
+  }
+
+  completarPendiente(id: number, datos: DatosCrearActividad) {
+    return this.prisma.actividadDiaria.update({
+      where: { id },
+      data: {
+        claveOperacion: datos.claveOperacion,
+        proyectoId: datos.proyectoId,
+        usuarioId: datos.usuarioId,
+        empleadoId: datos.empleadoId,
+        fecha: datos.fecha,
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        observaciones: datos.observaciones ?? null,
+        createdAt: new Date(),
+      },
+      include: includeActividad,
+    });
+  }
+
+  crear(datos: DatosCrearActividad) {
+    return this.prisma.actividadDiaria.create({
+      data: {
+        claveOperacion: datos.claveOperacion,
+        proyectoId: datos.proyectoId,
+        usuarioId: datos.usuarioId,
+        empleadoId: datos.empleadoId,
+        fecha: datos.fecha,
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        observaciones: datos.observaciones ?? null,
+      },
+      include: includeActividad,
+    });
+  }
+
+  actualizar(id: number, datos: DatosActualizarActividad) {
+    return this.prisma.actividadDiaria.update({
+      where: { id },
+      data: {
+        ...(datos.proyectoId !== undefined
+          ? { proyectoId: datos.proyectoId }
+          : {}),
+        ...(datos.fecha ? { fecha: datos.fecha } : {}),
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        observaciones: datos.observaciones,
+      },
+      include: includeActividad,
+    });
+  }
+
+  findEvidenciasPorActividad(actividadDiariaId: number) {
+    return this.prisma.evidenciaActividadDiaria.findMany({
+      where: { actividadDiariaId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: includeEvidenciaPublica,
+    });
+  }
+
+  findEvidenciaById(actividadDiariaId: number, evidenciaId: number) {
+    return this.prisma.evidenciaActividadDiaria.findFirst({
+      where: {
+        id: evidenciaId,
+        actividadDiariaId,
+        deletedAt: null,
+      },
+    });
+  }
+
+  crearEvidencias(
+    actividadDiariaId: number,
+    usuarioId: number,
+    archivos: DatosCrearEvidencia[],
+  ) {
+    return this.prisma.$transaction(
+      archivos.map((archivo) =>
+        this.prisma.evidenciaActividadDiaria.create({
+          data: {
+            actividadDiariaId,
+            usuarioId,
+            nombreOriginal: archivo.nombreOriginal,
+            rutaArchivo: archivo.rutaArchivo,
+            mimeType: archivo.mimeType,
+            tamanoBytes: archivo.tamanoBytes,
+          },
+          select: includeEvidenciaPublica,
+        }),
+      ),
+    );
+  }
+
+  eliminarEvidencia(id: number) {
+    return this.prisma.evidenciaActividadDiaria.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+      select: includeEvidenciaPublica,
+    });
+  }
+}

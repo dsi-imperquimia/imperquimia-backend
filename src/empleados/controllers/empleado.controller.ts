@@ -7,11 +7,14 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
 } from '@nestjs/common';
 import { CreateEmpleadoDto } from '../dto/createEmpleado';
 import { UpdateEmpleadoDto } from '../dto/updateEmpleado';
 import { UpdateHabilidadesEmpleadoDto } from '../dto/updateHabilidadesEmpleado';
 import { EmpleadoService } from '../service/empleado.service';
+
+type UsuarioRequest = { user: { sub: number } };
 
 //estos son los endpoint
 // Controlador REST para `empleados`. Rutas sencillas y comentarios en español.
@@ -29,6 +32,36 @@ export class EmpleadoController {
   @Get()
   findAll() {
     return this.empleadoService.findAll();
+  }
+
+  // GET /empleados/asignaciones -> panel de asignaciones y carga por empleado
+  @Get('asignaciones')
+  findAsignaciones() {
+    return this.empleadoService.findAsignaciones();
+  }
+
+  // GET /empleados/me/asignaciones -> proyectos activos del técnico autenticado (GPRCIMPER-122)
+  @Get('me/asignaciones')
+  misAsignaciones(@Req() req: UsuarioRequest) {
+    return this.empleadoService.misAsignaciones(req.user.sub);
+  }
+
+  // GET /empleados/me/asignaciones/:proyectoId -> detalle de una asignación propia (GPRCIMPER-122)
+  @Get('me/asignaciones/:proyectoId')
+  miAsignacionDetalle(
+    @Param('proyectoId', ParseIntPipe) proyectoId: number,
+    @Req() req: UsuarioRequest,
+  ) {
+    return this.empleadoService.miAsignacionDetalle(req.user.sub, proyectoId);
+  }
+
+  // PATCH /empleados/me/asignaciones/:proyectoId/vista -> marca la asignación como vista (GPRCIMPER-122)
+  @Patch('me/asignaciones/:proyectoId/vista')
+  marcarAsignacionVista(
+    @Param('proyectoId', ParseIntPipe) proyectoId: number,
+    @Req() req: UsuarioRequest,
+  ) {
+    return this.empleadoService.marcarAsignacionVista(req.user.sub, proyectoId);
   }
 
   // GET /empleados/:id -> obtener por id

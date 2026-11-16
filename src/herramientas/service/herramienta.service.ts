@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +11,7 @@ import { UpdateHerramientaDto } from '../dto/update-herramienta.dto';
 import { EstadoHerramienta, Prisma } from '@gen/prisma/client';
 import { TiposHerramientaService } from './tipos-herramienta.service';
 import { MarcasHerramientaService } from './marcas-herramienta.service';
+import { CreateReporteDefectoDto } from '../dto/create-reporte-defecto.dto';
 
 @Injectable()
 export class HerramientaService {
@@ -19,8 +22,11 @@ export class HerramientaService {
   ) {}
 
   async create(dto: CreateHerramientaDto) {
-    if (dto.proyectoId != null && !(await this.repo.findProyectoAsignable(dto.proyectoId))) {
-      throw new BadRequestException('El proyecto no existe o está cancelado.');
+    if (
+      dto.proyectoId != null &&
+      !(await this.repo.findProyectoAsignable(dto.proyectoId))
+    ) {
+      throw new BadRequestException('El proyecto no existe o no está activo.');
     }
     await this.tipos.ensureSelectable(dto.tipoId);
     const marca = await this.marcas.ensureSelectable(dto.marcaId);
@@ -32,8 +38,12 @@ export class HerramientaService {
       marca: marca.nombre,
       marcaId: marca.id,
       tipoId: dto.tipoId,
-      estado: EstadoHerramienta.DISPONIBLE,
+      estado:
+        dto.proyectoId != null
+          ? EstadoHerramienta.EN_PROYECTO
+          : EstadoHerramienta.DISPONIBLE,
       proyectoId: dto.proyectoId ?? null,
+      ubicacionActual: dto.proyectoId != null ? 'PROYECTO' : 'BODEGA',
     });
     return this.withTipoNombre(herramienta);
   }
@@ -56,8 +66,47 @@ export class HerramientaService {
     return herramientas.map((herramienta) => this.withTipoNombre(herramienta));
   }
 
+  async findAllParaUsuario(
+    usuarioId: number,
+    proyectoId?: number,
+    estado?: EstadoHerramienta,
+  ) {
+    const alcance = await this.repo.alcanceLectura(usuarioId);
+    if (alcance.completo) return this.findAll(proyectoId, estado);
+    if (alcance.empleadoId === null) return [];
+
+    const empleadoId = alcance.empleadoId;
+    const herramientas = await this.repo.findMany({
+      ...(proyectoId !== undefined ? { proyectoId } : {}),
+      ...(estado !== undefined ? { estado } : {}),
+      proyecto: {
+        is: {
+          deletedAt: null,
+          OR: [
+            { jefeProyectoId: empleadoId },
+            { empleados: { some: { empleadoId, fechaRetiro: null } } },
+          ],
+        },
+      },
+    });
+    return herramientas.map((herramienta) => this.withTipoNombre(herramienta));
+  }
+
   async findOne(id: number) {
     const herramienta = await this.repo.findUnique(id);
+    if (!herramienta) {
+      throw new NotFoundException(`Herramienta #${id} no encontrada`);
+    }
+    return this.withTipoNombre(herramienta);
+  }
+
+  async findOneParaUsuario(id: number, usuarioId: number) {
+    const alcance = await this.repo.alcanceLectura(usuarioId);
+    if (alcance.completo) return this.findOne(id);
+    const herramienta =
+      alcance.empleadoId === null
+        ? null
+        : await this.repo.findAsignada(id, alcance.empleadoId);
     if (!herramienta) {
       throw new NotFoundException(`Herramienta #${id} no encontrada`);
     }
@@ -78,6 +127,72 @@ export class HerramientaService {
       ...(marca ? { marca: marca.nombre } : {}),
     });
     return this.withTipoNombre(herramienta);
+  }
+
+  async reportarDefecto(
+    herramientaId: number,
+    dto: CreateReporteDefectoDto,
+    usuarioId: number,
+  ) {
+    const herramienta = await this.repo.findUnique(herramientaId);
+    if (!herramienta) {
+      throw new NotFoundException(
+        `Herramienta #${herramientaId} no encontrada`,
+      );
+    }
+    if (
+      !(await this.repo.usuarioPuedeOperarHerramienta(usuarioId, herramientaId))
+    ) {
+      throw new ForbiddenException(
+        'No tienes acceso para reportar el estado de esta herramienta.',
+      );
+    }
+    if (herramienta.estado === EstadoHerramienta.DESECHO) {
+      throw new ConflictException(
+        'No se puede reportar una herramienta que ya fue dada de baja.',
+      );
+    }
+    if (herramienta.estado === EstadoHerramienta.REQUIERE_REVISION) {
+      throw new ConflictException(
+        'La herramienta ya tiene un reporte pendiente de revisión.',
+      );
+    }
+
+    const observacion = dto.observacion?.trim();
+    if (!observacion) {
+      throw new BadRequestException('Describe el defecto de la herramienta.');
+    }
+    try {
+      return await this.repo.crearReporteDefecto({
+        herramientaId,
+        observacion,
+        reportadoPorId: usuarioId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'REPORTE_PENDIENTE') {
+        throw new ConflictException(
+          'La herramienta ya tiene un reporte pendiente de revisión.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async findReportesDefecto(herramientaId: number, usuarioId: number) {
+    const herramienta = await this.repo.findUnique(herramientaId);
+    if (!herramienta) {
+      throw new NotFoundException(
+        `Herramienta #${herramientaId} no encontrada`,
+      );
+    }
+    if (
+      !(await this.repo.usuarioPuedeOperarHerramienta(usuarioId, herramientaId))
+    ) {
+      throw new ForbiddenException(
+        'No tienes acceso a los reportes de esta herramienta.',
+      );
+    }
+    return this.repo.findReportesDefecto(herramientaId);
   }
 
   private withTipoNombre<T extends { tipo: { nombre: string } }>(

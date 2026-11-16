@@ -30,8 +30,9 @@
     "prisma:reset": "prisma migrate reset --force",
     "prisma:status": "prisma migrate status",
     "prisma:seed": "prisma db seed",
+    "prisma:seed:operational": "tsx prisma/seeds/operational.ts",
     "prisma:fix-sequences": "tsx prisma/scripts/fix-sequences.ts",
-    "postinstall": "[ -d prisma/generated/prisma ] || prisma generate"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@nestjs/common": "^12.1.2",
@@ -39,12 +40,16 @@
     "@nestjs/jwt": "^12.0.2",
     "@nestjs/mapped-types": "12.0.0",
     "@nestjs/platform-express": "^12.1.2",
+    "@nestjs/schedule": "^12.0.3",
     "@nestjs/swagger": "^12.0.2",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "exceljs": "^4.4.0",
+    "nodemailer": "^10.5.0",
+    "pdfkit": "^0.20.2",
     "reflect-metadata": "~0.2.2",
     "rxjs": "~7.8.2",
     "tsx": "^4.23.15"
@@ -58,7 +63,10 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "~5.0.6",
     "@types/jest": "~30.0.0",
+    "@types/multer": "^2.3.0",
     "@types/node": "~26.6.4",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pdfkit": "^0.17.7",
     "@types/pg": "^8.23.1",
     "@types/supertest": "~7.2.1",
     "dotenv": "^18.0.5",

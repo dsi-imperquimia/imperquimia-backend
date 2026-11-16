@@ -1,22 +1,30 @@
 import {
+  correoCancelacionHtml,
+  correoReasignacionHtml,
+} from '@/common/mail/mail-templates';
+import { MailService } from '@/common/mail/mail.service';
+import { Prisma } from '@gen/prisma/client';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@gen/prisma/client';
-import { ProyectoRepository } from '../repository/proyectoRepository';
 import {
   CreateProyectoDto,
   DetalleProyectoDto,
 } from '../dto/create-proyecto.dto';
 import { UpdateProyectoDto } from '../dto/update-proyecto.dto';
+import { ProyectoRepository } from '../repository/proyectoRepository';
 
 const MAX_IMPORTE = new Prisma.Decimal('99999999.99');
 
 @Injectable()
 export class ProyectoService {
-  constructor(private readonly repo: ProyectoRepository) {}
+  constructor(
+    private readonly repo: ProyectoRepository,
+    private readonly mail: MailService,
+  ) {}
 
   private datosProyecto(dto: CreateProyectoDto) {
     if (dto.phone?.trim() && !/^\d{8}$/.test(dto.phone.trim()))
@@ -82,19 +90,19 @@ export class ProyectoService {
         );
       }
       if (
-        !Number.isFinite(detalle.cantidad) ||
-        detalle.cantidad <= 0 ||
+        !Number.isSafeInteger(detalle.cantidad) ||
+        detalle.cantidad < 1 ||
         !Number.isInteger(detalle.materialId) ||
         detalle.materialId <= 0
       ) {
         throw new BadRequestException(
-          'Selecciona un material y una cantidad mayor que cero.',
+          'Selecciona un material y una cantidad entera mayor que cero.',
         );
       }
       const cantidad = new Prisma.Decimal(detalle.cantidad);
-      if (cantidad.decimalPlaces() > 2 || cantidad.greaterThan('99999999.99')) {
+      if (cantidad.greaterThan('99999999')) {
         throw new BadRequestException(
-          'La cantidad admite hasta dos decimales.',
+          'La cantidad supera el máximo permitido.',
         );
       }
       const costoUnitario = anterior?.costoUnitario ?? material.costoUnitario;
@@ -147,18 +155,30 @@ export class ProyectoService {
 
   async create(dto: CreateProyectoDto, userId: number) {
     const presupuesto = await this.presupuesto(dto.detalles ?? []);
+    if (
+      dto.jefeProyectoId !== undefined &&
+      !(await this.repo.empleadoDisponible(dto.jefeProyectoId))
+    ) {
+      throw new NotFoundException('Empleado no encontrado o inactivo.');
+    }
     return this.repo.create({
       ...this.datosProyecto(dto),
       creadoPorId: userId,
       cotizacionId: null,
+      jefeProyectoId: dto.jefeProyectoId ?? null,
       ...presupuesto,
     });
   }
 
   async update(id: number, dto: UpdateProyectoDto) {
     const actual = await this.findOne(id);
-    if (actual.estado === 'CANCELADO') {
-      throw new ConflictException('No se puede editar un proyecto cancelado.');
+    if (actual.estado !== 'ACTIVO') {
+      throw new ConflictException('Solo se puede editar un proyecto activo.');
+    }
+    const cancelando = dto.estado === 'CANCELADO';
+    const motivo = dto.motivo?.trim();
+    if (cancelando && !motivo) {
+      throw new BadRequestException('Ingresa el motivo de la cancelación.');
     }
     const datos = this.datosProyecto({
       nombre: dto.nombre ?? actual.nombre,
@@ -180,19 +200,42 @@ export class ProyectoService {
           ? (actual.fechaFin?.toISOString().slice(0, 10) ?? '')
           : dto.fechaFin,
     });
-    if (dto.detalles === undefined) return this.repo.update(id, datos);
-    if (dto.detalles === null)
-      throw new BadRequestException(
-        'Los materiales deben enviarse en un arreglo.',
+    const camposEditables = {
+      ...(dto.estado !== undefined && { estado: dto.estado }),
+      ...(dto.tipoObra !== undefined && { tipoObra: dto.tipoObra }),
+      ...(dto.presupuesto !== undefined && { presupuesto: dto.presupuesto }),
+      ...(cancelando && { motivoCancelacion: motivo }),
+    };
+
+    let resultado;
+    if (dto.detalles === undefined) {
+      resultado = await this.repo.update(id, { ...datos, ...camposEditables });
+    } else {
+      if (dto.detalles === null)
+        throw new BadRequestException(
+          'Los materiales deben enviarse en un arreglo.',
+        );
+      const presupuestoMateriales = await this.presupuesto(
+        dto.detalles,
+        actual.detalles,
       );
-    const presupuesto = await this.presupuesto(dto.detalles, actual.detalles);
-    return this.repo.update(id, {
-      ...datos,
-      subTotal: presupuesto.subTotal,
-      totalIva: presupuesto.totalIva,
-      total: presupuesto.total,
-      detalles: { deleteMany: {}, create: presupuesto.detalles.create },
-    });
+      resultado = await this.repo.update(id, {
+        ...datos,
+        ...camposEditables,
+        subTotal: presupuestoMateriales.subTotal,
+        totalIva: presupuestoMateriales.totalIva,
+        total: presupuestoMateriales.total,
+        detalles: {
+          deleteMany: {},
+          create: presupuestoMateriales.detalles.create,
+        },
+      });
+    }
+
+    if (cancelando) {
+      await this.notificarCancelacion(actual.nombre, motivo!, id);
+    }
+    return resultado;
   }
 
   findAll() {
@@ -207,59 +250,125 @@ export class ProyectoService {
     return proyecto;
   }
 
-  async cancelar(id: number) {
+  async cancelar(id: number, motivo: string) {
     const proyecto = await this.findOne(id);
 
-    if (proyecto.estado === 'CANCELADO') {
-      throw new ConflictException('El proyecto ya está cancelado.');
+    if (proyecto.estado !== 'ACTIVO') {
+      throw new ConflictException('Solo se puede cancelar un proyecto activo.');
     }
 
-    if (
-      proyecto.empleados.some((asignacion) => asignacion.fechaRetiro === null)
-    ) {
-      throw new ConflictException(
-        'Retira los empleados asignados antes de cancelar el proyecto.',
-      );
-    }
+    const cancelado = await this.repo.cancelar(id, motivo);
+    await this.notificarCancelacion(proyecto.nombre, motivo, id);
+    return cancelado;
+  }
 
-    if (proyecto.herramientas.length > 0) {
+  // Avisa por correo a los empleados con asignación vigente al momento de
+  // cancelar (GPRCIMPER-28). El envío no bloquea la cancelación si falla.
+  private async notificarCancelacion(
+    nombreProyecto: string,
+    motivo: string,
+    proyectoId: number,
+  ) {
+    const asignaciones =
+      await this.repo.findCorreosEmpleadosActivos(proyectoId);
+    const correos = asignaciones
+      .map((asignacion) => asignacion.empleado.user?.email)
+      .filter((email): email is string => Boolean(email));
+    await Promise.all(
+      correos.map((email) =>
+        this.mail.enviar({
+          to: email,
+          subject: `Proyecto cancelado: ${nombreProyecto}`,
+          text: `El proyecto "${nombreProyecto}" fue cancelado.\nMotivo: ${motivo}`,
+          html: correoCancelacionHtml({ nombreProyecto, motivo }),
+        }),
+      ),
+    );
+  }
+
+  async reasignarEmpleado(
+    origenId: number,
+    destinoId: number,
+    empleadoId: number,
+    usuarioId: number,
+  ) {
+    if (origenId === destinoId) {
       throw new BadRequestException(
-        `No se puede cancelar el proyecto #${id} porque tiene ${proyecto.herramientas.length} herramienta(s) asignada(s)`,
+        'El proyecto de origen y destino deben ser diferentes.',
       );
     }
+    const [origen, destino] = await Promise.all([
+      this.findOne(origenId),
+      this.findOne(destinoId),
+    ]);
+    if (destino.estado === 'CANCELADO') {
+      throw new ConflictException(
+        'No se puede asignar empleados a un proyecto cancelado.',
+      );
+    }
+    const asignacion = await this.repo.asignacionVigente(origenId, empleadoId);
+    if (!asignacion) {
+      throw new NotFoundException(
+        'El empleado no tiene una asignación activa en el proyecto de origen.',
+      );
+    }
+    await this.repo.reasignarEmpleado(origenId, destinoId, empleadoId);
+    await this.notificarReasignacion(
+      origen.id,
+      origen.nombre,
+      destino.nombre,
+      asignacion.empleado.nombreCompleto,
+      usuarioId,
+    );
+    return { message: 'Empleado reasignado correctamente.' };
+  }
 
-    return this.repo.cancelar(id);
+  // Avisa al jefe del proyecto de origen, por correo y por sistema, que
+  // perdió un técnico por una reasignación urgente (GPRCIMPER-84). No
+  // bloquea la reasignación si el proyecto no tiene jefe o si falla el aviso.
+  private async notificarReasignacion(
+    origenId: number,
+    nombreOrigen: string,
+    nombreDestino: string,
+    nombreEmpleado: string,
+    usuarioId: number,
+  ) {
+    const jefe = await this.repo.findJefeProyecto(origenId);
+    const user = jefe?.jefeProyecto?.user;
+    if (!user) return;
+    const descripcion = `${nombreEmpleado} fue reasignado del proyecto "${nombreOrigen}" al proyecto "${nombreDestino}".`;
+    await Promise.all([
+      this.mail.enviar({
+        to: user.email,
+        subject: `Técnico reasignado: ${nombreOrigen}`,
+        text: descripcion,
+        html: correoReasignacionHtml({
+          nombreEmpleado,
+          nombreOrigen,
+          nombreDestino,
+        }),
+      }),
+      this.repo.crearNotificacionReasignacion({
+        proyectoId: origenId,
+        destinatarioId: user.id,
+        creadaPorId: usuarioId,
+        nombreProyecto: nombreOrigen,
+        descripcion,
+      }),
+    ]);
   }
 
   async asignarEmpleado(proyectoId: number, empleadoId: number) {
     const proyecto = await this.findOne(proyectoId);
-    if (proyecto.estado === 'CANCELADO') {
+    if (proyecto.estado !== 'ACTIVO') {
       throw new ConflictException(
-        'No se puede asignar empleados a un proyecto cancelado.',
+        'Solo se pueden asignar empleados a un proyecto activo.',
       );
     }
     if (!(await this.repo.empleadoDisponible(empleadoId))) {
       throw new NotFoundException('Empleado no encontrado o inactivo.');
     }
-    if (await this.repo.asignacionActiva(empleadoId)) {
-      throw new ConflictException(
-        'El empleado ya tiene una asignación activa. Retíralo antes de asignarlo nuevamente.',
-      );
-    }
-    try {
-      return await this.repo.asignarEmpleado(proyectoId, empleadoId);
-    } catch (error) {
-      // El indice protege tambien solicitudes concurrentes que superen la comprobacion anterior.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'El empleado ya tiene una asignación activa.',
-        );
-      }
-      throw error;
-    }
+    return this.repo.asignarEmpleado(proyectoId, empleadoId);
   }
 
   async retirarEmpleado(proyectoId: number, empleadoId: number) {
@@ -270,5 +379,31 @@ export class ProyectoService {
         'No existe una asignación activa de este empleado en el proyecto.',
       );
     return { message: 'Empleado retirado del proyecto.' };
+  }
+
+  async asignarJefe(proyectoId: number, empleadoId: number) {
+    const proyecto = await this.findOne(proyectoId);
+    if (proyecto.estado !== 'ACTIVO') {
+      throw new ConflictException(
+        'Solo se puede asignar un jefe a un proyecto activo.',
+      );
+    }
+    if (!(await this.repo.empleadoDisponible(empleadoId))) {
+      throw new NotFoundException('Empleado no encontrado o inactivo.');
+    }
+    if (proyecto.jefeProyectoId === empleadoId) {
+      throw new ConflictException(
+        'Este empleado ya es el jefe de este proyecto.',
+      );
+    }
+    return this.repo.asignarJefe(proyectoId, empleadoId);
+  }
+
+  async retirarJefe(proyectoId: number) {
+    const proyecto = await this.findOne(proyectoId);
+    if (!proyecto.jefeProyectoId) {
+      throw new NotFoundException('El proyecto no tiene un jefe asignado.');
+    }
+    return this.repo.retirarJefe(proyectoId);
   }
 }

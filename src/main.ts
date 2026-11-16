@@ -33,6 +33,7 @@ async function bootstrap() {
   app.enableCors({
     origin: '*', // Permitir solicitudes desde cualquier origen
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Métodos HTTP permitidos
+    exposedHeaders: ['Content-Disposition'],
     preflightContinue: false, // No pasar la solicitud de preflight a la siguiente función de middleware
     // optionsSuccessStatus: 204, // Respuesta para solicitudes de preflight exitosas
   });
@@ -60,7 +61,13 @@ async function bootstrap() {
    */
   const server = app.getHttpAdapter().getInstance();
   const router = server.router;
-  const availableRoutes = router.stack
+  const availableRoutes = [...router.stack]
+    .sort((a, b) => {
+      if (a.route && b.route) {
+        return a.route.path.localeCompare(b.route.path);
+      }
+      return 0;
+    })
     .map((layer) => {
       if (layer.route) {
         return {

@@ -1,22 +1,30 @@
 import { Module } from '@nestjs/common';
+import { ActividadesDiariasModule } from './actividades-diarias/actividades-diarias.module';
+import { AlertasModule } from './alertas/alertas.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CargoModule } from './cargo/cargo.module';
+import { MailModule } from './common/mail/mail.module';
+import { ConsumosMaterialesModule } from './consumos-materiales/consumos-materiales.module';
 import { CotizacionModule } from './cotizaciones/cotizaciones.module';
 import { EmpleadosModule } from './empleados/empleados.module';
-import { PermissionsModule } from './permissions/permissions.module';
-import { PrismaModule } from './prisma/prisma.module';
-import { RolesModule } from './roles/roles.module';
-import { UsersModule } from './users/users.module';
 import { HerramientasModule } from './herramientas/herramientas.module';
+import { IncidenciasModule } from './incidencias/incidencias.module';
+import { InventarioMaterialesModule } from './inventario-materiales/inventario-materiales.module';
+import { JornadaHerramientasModule } from './jornada-herramientas/jornada-herramientas.module';
 import { MaterialesModule } from './materiales/materiales.module';
 import { MovimientosModule } from './movimientos/movimientos.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { ProyectosModule } from './proyectos/proyectos.module';
+import { RolesModule } from './roles/roles.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     PrismaModule,
+    MailModule,
     UsersModule,
     AuthModule,
     CargoModule,
@@ -28,6 +36,12 @@ import { ProyectosModule } from './proyectos/proyectos.module';
     MaterialesModule,
     MovimientosModule,
     ProyectosModule,
+    AlertasModule,
+    InventarioMaterialesModule,
+    ActividadesDiariasModule,
+    IncidenciasModule,
+    ConsumosMaterialesModule,
+    JornadaHerramientasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

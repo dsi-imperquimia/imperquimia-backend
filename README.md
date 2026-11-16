@@ -27,9 +27,25 @@
 
 ## Project setup
 
+Con Node.js 24 y PostgreSQL 18 disponibles, crear un `.env` local y configurar `DATABASE_URL` y `JWT_SECRET`. La URL de base de datos debe apuntar a una base PostgreSQL existente. Después:
+
 ```bash
-$ npm install
+npm ci
 ```
+
+## Migraciones y datos operativos
+
+Después de configurar `DATABASE_URL`, aplicar el esquema y cargar los datos necesarios para operar:
+
+```bash
+npm run prisma:deploy
+npm run prisma:generate
+npm run prisma:seed:operational
+```
+
+El seed operativo crea o completa roles, permisos, `BODEGA-GENERAL` y existencias iniciales sin reemplazar saldos. También reconcilia la ubicación y el estado de herramientas anteriores a la fase 3 según su último movimiento (o, si no tienen movimientos, proyecto y estado). Ejecutarlo después de desplegar las migraciones y antes de habilitar movimientos; se puede repetir. `npm run prisma:seed` incluye esa misma reconciliación y además crea usuarios, empleados, materiales y proyectos de ejemplo; reservarlo para bases de desarrollo.
+
+Si una base ya aplicó la versión anterior de `20261112143000_inventario_materiales_fase_1`, revisar su historial antes de desplegar: el archivo fue regenerado y Prisma detectará que cambió después de aplicarse.
 
 ## Compile and run the project
 
