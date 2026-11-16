@@ -15,6 +15,7 @@ import {
 } from '@gen/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { MailService } from '@/common/mail/mail.service';
+import { correoAlertaHtml } from '@/common/mail/mail-templates';
 import { ActualizarConfiguracionAlertaDto } from './dto/actualizar-configuracion-alerta.dto';
 import { CrearConfiguracionAlertaDto } from './dto/crear-configuracion-alerta.dto';
 import { CrearNotificacionAlertaDto } from './dto/crear-notificacion-alerta.dto';
@@ -726,6 +727,12 @@ export class AlertasService implements OnModuleInit, OnModuleDestroy {
             to: administrador.email,
             subject: `${nombreConfiguracion}: ${proyecto.nombre}`,
             text: descripcion,
+            html: correoAlertaHtml({
+              nombreConfiguracion,
+              nombreProyecto: proyecto.nombre,
+              descripcion,
+              vencido,
+            }),
           });
         }
       }

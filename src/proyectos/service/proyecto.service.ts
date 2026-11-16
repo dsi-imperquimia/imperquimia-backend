@@ -1,4 +1,7 @@
-import { correoReasignacionHtml } from '@/common/mail/mail-templates';
+import {
+  correoCancelacionHtml,
+  correoReasignacionHtml,
+} from '@/common/mail/mail-templates';
 import { MailService } from '@/common/mail/mail.service';
 import { Prisma } from '@gen/prisma/client';
 import {
@@ -277,6 +280,7 @@ export class ProyectoService {
           to: email,
           subject: `Proyecto cancelado: ${nombreProyecto}`,
           text: `El proyecto "${nombreProyecto}" fue cancelado.\nMotivo: ${motivo}`,
+          html: correoCancelacionHtml({ nombreProyecto, motivo }),
         }),
       ),
     );

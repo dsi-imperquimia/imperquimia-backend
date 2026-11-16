@@ -54,6 +54,14 @@ function filaDato(etiqueta: string, valor: string): string {
   </tr>`;
 }
 
+function etiquetaEstado(
+  texto: string,
+  colorFondo: string,
+  colorTexto: string,
+): string {
+  return `<span style="display:inline-block;padding:4px 10px;border-radius:9999px;font-size:12px;font-weight:600;background-color:${colorFondo};color:${colorTexto};">${escapeHtml(texto)}</span>`;
+}
+
 // Correo al jefe de proyecto cuando pierde un técnico por reasignación
 // (GPRCIMPER-84).
 export function correoReasignacionHtml(data: {
@@ -74,4 +82,57 @@ export function correoReasignacionHtml(data: {
       Si necesitas cubrir esta posición, puedes asignar otro técnico desde el sistema.
     </p>`;
   return layout('Técnico reasignado', contenido);
+}
+
+// Correo a los empleados asignados cuando se cancela el proyecto
+// (GPRCIMPER-28).
+export function correoCancelacionHtml(data: {
+  nombreProyecto: string;
+  motivo: string;
+}): string {
+  const contenido = `
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.5;color:#374151;">
+      El proyecto <strong>${escapeHtml(data.nombreProyecto)}</strong> fue cancelado.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #fecaca;background-color:#fef2f2;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="margin:0;font-size:12px;color:#b91c1c;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Motivo</p>
+          <p style="margin:4px 0 0;font-size:15px;color:#7f1d1d;line-height:1.5;">${escapeHtml(data.motivo)}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;line-height:1.5;color:#6b7280;">
+      Si tenías actividades o materiales planificados en este proyecto, confírmalo con tu jefe de proyecto.
+    </p>`;
+  return layout('Proyecto cancelado', contenido);
+}
+
+// Correo de alertas automáticas de proyecto (vencimiento, próximo a vencer,
+// etc. — GPRCIMPER-26). `vencido` colorea la etiqueta de rojo (ya venció) o
+// ámbar (próximo a vencer).
+export function correoAlertaHtml(data: {
+  nombreConfiguracion: string;
+  nombreProyecto: string;
+  descripcion: string;
+  vencido: boolean;
+}): string {
+  const colorFondo = data.vencido ? '#fef2f2' : '#fffbeb';
+  const colorTexto = data.vencido ? '#b91c1c' : '#92400e';
+  const etiqueta = data.vencido ? 'Vencido' : 'Próximo a vencer';
+  const contenido = `
+    <div style="margin:0 0 16px;">${etiquetaEstado(etiqueta, colorFondo, colorTexto)}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px;">
+          <p style="margin:0;font-size:12px;color:#9ca3af;text-transform:uppercase;letter-spacing:0.05em;">Proyecto</p>
+          <p style="margin:4px 0 12px;font-size:15px;color:#111827;font-weight:600;">${escapeHtml(data.nombreProyecto)}</p>
+          <p style="margin:0;font-size:14px;color:#374151;line-height:1.5;">${escapeHtml(data.descripcion)}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;line-height:1.5;color:#6b7280;">
+      Revisa el proyecto en el sistema para tomar acción.
+    </p>`;
+  return layout(data.nombreConfiguracion, contenido);
 }
