@@ -62,6 +62,12 @@ async function bootstrap() {
   const server = app.getHttpAdapter().getInstance();
   const router = server.router;
   const availableRoutes = router.stack
+    .sort((a, b) => {
+      if (a.route && b.route) {
+        return a.route.path.localeCompare(b.route.path);
+      }
+      return 0;
+    })
     .map((layer) => {
       if (layer.route) {
         return {
