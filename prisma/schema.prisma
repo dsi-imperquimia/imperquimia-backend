@@ -51,6 +51,7 @@ model User {
   evidenciasActividades        EvidenciaActividadDiaria[]
   incidenciasReportadas        Incidencia[]
   historialIncidencias         HistorialIncidencia[]
+  jornadasHerramientasCreadas  JornadaHerramientas[]      @relation("JornadaHerramientasCreador")
 
   @@map("mnt_users")
 }
@@ -79,8 +80,9 @@ model Empleado {
   proyectos   ProyectoEmpleado[]
 
   // Proyectos donde este empleado es el jefe de proyecto (GPRCIMPER-23)
-  proyectosComoJefe Proyecto[] @relation("ProyectoJefe")
-  actividadesDiarias ActividadDiaria[]
+  proyectosComoJefe    Proyecto[]            @relation("ProyectoJefe")
+  actividadesDiarias   ActividadDiaria[]
+  jornadasHerramientas JornadaHerramientas[]
 
   @@map("mnt_empleados")
 }
@@ -437,6 +439,7 @@ model Herramienta {
 
   movimientos     MovimientoHerramienta[]
   reportesDefecto ReporteDefectoHerramienta[]
+  jornadaItems    JornadaHerramientaItem[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -505,6 +508,71 @@ model ReporteDefectoHerramienta {
 }
 
 // ==========================================
+// MODELO: VERIFICACIÓN DE HERRAMIENTAS POR JORNADA (GPRCIMPER-108 y 110)
+// ==========================================
+
+enum EstadoVerificacionHerramienta {
+  PENDIENTE
+  VERIFICADA
+  AUSENTE
+}
+
+// Checklist de herramientas despachadas a un técnico (vía su proyecto) para
+// un día. Se abre al inicio de la jornada (GPRCIMPER-108) y se cierra al
+// confirmar el retorno (GPRCIMPER-110).
+model JornadaHerramientas {
+  id             Int      @id @default(autoincrement())
+  claveOperacion String   @unique @map("clave_operacion") @db.Uuid
+  proyectoId     Int      @map("proyecto_id")
+  proyecto       Proyecto @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  empleadoId     Int      @map("empleado_id")
+  empleado       Empleado @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+  fecha          DateTime @db.Date
+
+  creadoPorId Int  @map("creado_por_id")
+  creadoPor   User @relation("JornadaHerramientasCreador", fields: [creadoPorId], references: [id], onDelete: Restrict)
+
+  // Null = checklist abierto/pendiente de cerrar en esa fase.
+  verificacionInicioAt  DateTime? @map("verificacion_inicio_at")
+  verificacionRetornoAt DateTime? @map("verificacion_retorno_at")
+
+  items JornadaHerramientaItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([proyectoId, empleadoId, fecha])
+  @@index([empleadoId, fecha])
+  @@map("inv_jornadas_herramientas")
+}
+
+// Una fila por herramienta incluida en el checklist (snapshot de las
+// herramientas EN_PROYECTO al abrir la jornada).
+model JornadaHerramientaItem {
+  id            Int                 @id @default(autoincrement())
+  jornadaId     Int                 @map("jornada_id")
+  jornada       JornadaHerramientas @relation(fields: [jornadaId], references: [id], onDelete: Cascade)
+  herramientaId Int                 @map("herramienta_id")
+  herramienta   Herramienta         @relation(fields: [herramientaId], references: [id], onDelete: Restrict)
+
+  estadoInicio      EstadoVerificacionHerramienta @default(PENDIENTE) @map("estado_inicio")
+  observacionInicio String?                       @map("observacion_inicio") @db.Text
+
+  estadoRetorno      EstadoVerificacionHerramienta @default(PENDIENTE) @map("estado_retorno")
+  observacionRetorno String?                       @map("observacion_retorno") @db.Text
+
+  // Incidencia generada automáticamente si la herramienta no retorna (GPRCIMPER-110).
+  incidenciaId Int?        @map("incidencia_id")
+  incidencia   Incidencia? @relation(fields: [incidenciaId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([jornadaId, herramientaId])
+  @@map("inv_jornada_herramientas_items")
+}
+
+// ==========================================
 // MODELO: Proyecto
 // ==========================================
 
@@ -527,27 +595,27 @@ enum TipoObra {
 }
 
 model Proyecto {
-  id        Int            @id @default(autoincrement())
-  nombre    String
-  ubicacion String?
-  estado    EstadoProyecto @default(ACTIVO)
+  id          Int            @id @default(autoincrement())
+  nombre      String
+  ubicacion   String?
+  estado      EstadoProyecto @default(ACTIVO)
   // Tipo de obra y presupuesto manual, editables desde el detalle (GPRCIMPER-27)
-  tipoObra    TipoObra? @map("tipo_obra")
-  presupuesto Decimal?  @db.Decimal(10, 2)
+  tipoObra    TipoObra?      @map("tipo_obra")
+  presupuesto Decimal?       @db.Decimal(10, 2)
 
-  descripcion String?
+  descripcion       String?
   // Nullable para conservar proyectos anteriores. Exigir fechas y cliente en nuevas creaciones desde la API.
-  fechaInicio DateTime? @map("fecha_inicio") @db.Date
-  fechaFin    DateTime? @map("fecha_fin") @db.Date
-  cliente     String?
+  fechaInicio       DateTime? @map("fecha_inicio") @db.Date
+  fechaFin          DateTime? @map("fecha_fin") @db.Date
+  cliente           String?
   // Motivo ingresado al cancelar el proyecto (GPRCIMPER-28).
-  motivoCancelacion String? @map("motivo_cancelacion")
+  motivoCancelacion String?   @map("motivo_cancelacion")
   // La API debe exigir al menos un contacto no vacio: phone o email.
-  phone       String?
-  email       String?
-  subTotal    Decimal   @default(0) @map("sub_total") @db.Decimal(10, 2)
-  totalIva    Decimal   @default(0) @map("total_iva") @db.Decimal(10, 2)
-  total       Decimal   @default(0) @db.Decimal(10, 2)
+  phone             String?
+  email             String?
+  subTotal          Decimal   @default(0) @map("sub_total") @db.Decimal(10, 2)
+  totalIva          Decimal   @default(0) @map("total_iva") @db.Decimal(10, 2)
+  total             Decimal   @default(0) @db.Decimal(10, 2)
 
   creadoPorId Int?               @map("creado_por_id")
   creadoPor   User?              @relation("ProyectoCreador", fields: [creadoPorId], references: [id], onDelete: SetNull)
@@ -573,6 +641,7 @@ model Proyecto {
   desviacionesConsumo   DesviacionConsumo[]
   actividadesDiarias     ActividadDiaria[]
   incidencias           Incidencia[]
+  jornadasHerramientas  JornadaHerramientas[]
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -804,26 +873,27 @@ enum EstadoIncidencia {
 }
 
 model Incidencia {
-  id             Int                 @id @default(autoincrement())
-  claveOperacion String              @unique @map("clave_operacion") @db.Uuid
-  proyectoId     Int                 @map("proyecto_id")
-  proyecto       Proyecto            @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
-  usuarioId      Int                 @map("usuario_id")
-  usuario        User                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  titulo         String              @db.VarChar(150)
-  descripcion    String              @db.Text
-  fecha          DateTime            @db.Date
-  prioridad      PrioridadIncidencia @default(MEDIA)
-  estado         EstadoIncidencia    @default(ABIERTA)
+  id                Int                 @id @default(autoincrement())
+  claveOperacion    String              @unique @map("clave_operacion") @db.Uuid
+  proyectoId        Int                 @map("proyecto_id")
+  proyecto          Proyecto            @relation(fields: [proyectoId], references: [id], onDelete: Restrict)
+  usuarioId         Int                 @map("usuario_id")
+  usuario           User                @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  titulo            String              @db.VarChar(150)
+  descripcion       String              @db.Text
+  fecha             DateTime            @db.Date
+  prioridad         PrioridadIncidencia @default(MEDIA)
+  estado            EstadoIncidencia    @default(ABIERTA)
   // Jornada (reporte diario) a la que está vinculada; una incidencia
   // pertenece como máximo a un reporte (GPRCIMPER-142).
-  actividadDiariaId Int?             @map("actividad_diaria_id")
-  actividadDiaria   ActividadDiaria? @relation(fields: [actividadDiariaId], references: [id], onDelete: SetNull)
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
-  deletedAt      DateTime?           @map("deleted_at")
+  actividadDiariaId Int?                @map("actividad_diaria_id")
+  actividadDiaria   ActividadDiaria?    @relation(fields: [actividadDiariaId], references: [id], onDelete: SetNull)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  deletedAt         DateTime?           @map("deleted_at")
 
-  historial HistorialIncidencia[]
+  historial    HistorialIncidencia[]
+  jornadaItems JornadaHerramientaItem[]
 
   @@index([proyectoId, estado])
   @@index([actividadDiariaId])

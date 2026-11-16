@@ -19,6 +19,7 @@ import { MailModule } from './common/mail/mail.module';
 import { ActividadesDiariasModule } from './actividades-diarias/actividades-diarias.module';
 import { IncidenciasModule } from './incidencias/incidencias.module';
 import { ConsumosMaterialesModule } from './consumos-materiales/consumos-materiales.module';
+import { JornadaHerramientasModule } from './jornada-herramientas/jornada-herramientas.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { ConsumosMaterialesModule } from './consumos-materiales/consumos-materia
     ActividadesDiariasModule,
     IncidenciasModule,
     ConsumosMaterialesModule,
+    JornadaHerramientasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
